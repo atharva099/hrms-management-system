@@ -1,0 +1,20 @@
+# XAMPP
+xampp-control.ini
+
+# VS Code
+.vscode/
+
+# Temporary files
+*.log
+*.tmp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Personal screenshots
+backup_images/
+
+# Cache
+.cache/
+desktop.ini
