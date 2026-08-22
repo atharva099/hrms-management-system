@@ -1,8 +1,8 @@
 <?php
 
-session_start();
+require_once 'includes/auth.php';
 
-session_destroy();
+auth_logout();
 
 header("Location: index.php");
 
