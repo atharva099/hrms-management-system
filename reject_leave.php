@@ -1,12 +1,9 @@
 <?php
 
-session_start();
-
 include 'includes/db.php';
+require_once 'includes/auth.php';
 
-if ($_SESSION['role'] != 'Admin') {
-    header("Location: dashboard.php");
-}
+auth_require_admin($conn);
 
 $id = $_GET['id'];
 
