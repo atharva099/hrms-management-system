@@ -1,21 +1,9 @@
 <?php
 
-session_start();
-
-if (!isset($_SESSION['employee_id'])) {
-       header("Location: index.php");
-}
-
 include 'includes/db.php';
+require_once 'includes/auth.php';
 
-$current_employee = $_SESSION['employee_id'];
-
-$user_query = "SELECT * FROM users
-WHERE employee_id='$current_employee'";
-
-$user_result = mysqli_query($conn, $user_query);
-
-$user = mysqli_fetch_assoc($user_result);
+auth_require_admin($conn);
 
 $shifts_query = mysqli_query(
        $conn,
@@ -63,10 +51,6 @@ if (mysqli_num_rows($id_query) > 0) {
 
 $generated_employee_id = "EMP" . $next_number;
 
-if ($user['role'] != 'Admin') {
-       header("Location: dashboard.php");
-}
-
 if (isset($_POST['add_employee'])) {
 
        $employee_id = $generated_employee_id;
@@ -92,6 +76,10 @@ if (isset($_POST['add_employee'])) {
        $phone = trim($_POST['phone']);
 
        $role = $_POST['role'];
+
+       if (!in_array($role, ['Admin', 'Employee'], true)) {
+              die("Invalid role.");
+       }
 
        $status = $_POST['status'];
 

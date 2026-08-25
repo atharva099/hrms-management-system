@@ -1,12 +1,9 @@
 <?php
 
-session_start();
-
-if (!isset($_SESSION['employee_id'])) {
-    header("Location: index.php");
-}
-
 include 'includes/db.php';
+require_once 'includes/auth.php';
+
+$employee_id = auth_require_admin($conn);
 
 $search = "";
 
@@ -52,8 +49,6 @@ mysqli_num_rows($inactive_result);
 
 $result = mysqli_query($conn, $query);
 
-$employee_id = $_SESSION['employee_id'];
-
 $user_query = "SELECT * FROM users
 WHERE employee_id='$employee_id'";
 
@@ -85,10 +80,6 @@ if (isset($_GET['error'])) {
         $success_message =
             "You cannot deactivate your own account.";
     }
-}
-
-if ($user['role'] != 'Admin') {
-    header("Location: dashboard.php");
 }
 
 ?>
