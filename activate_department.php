@@ -1,13 +1,9 @@
 <?php
 
-session_start();
-
-if (!isset($_SESSION['employee_id'])) {
-    header("Location:index.php");
-    exit();
-}
-
 include 'includes/db.php';
+require_once 'includes/auth.php';
+
+auth_require_admin($conn);
 
 $id = (int) $_GET['id'];
 

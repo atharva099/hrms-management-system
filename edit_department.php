@@ -1,30 +1,9 @@
 <?php
 
-session_start();
-
-if (!isset($_SESSION['employee_id'])) {
-    header("Location: index.php");
-    exit();
-}
-
 include 'includes/db.php';
+require_once 'includes/auth.php';
 
-$employee_id = $_SESSION['employee_id'];
-
-$user_query =
-    "SELECT * FROM users
-     WHERE employee_id='$employee_id'";
-
-$user_result =
-    mysqli_query($conn, $user_query);
-
-$user =
-    mysqli_fetch_assoc($user_result);
-
-if ($user['role'] != 'Admin') {
-    header("Location: dashboard.php");
-    exit();
-}
+auth_require_admin($conn);
 
 $id = (int) $_GET['id'];
 
