@@ -1,8 +1,9 @@
 <?php
 
-session_start();
-
 include 'includes/db.php';
+require_once 'includes/auth.php';
+
+auth_require_admin($conn);
 
 $department_name =
     trim($_POST['department_name']);
