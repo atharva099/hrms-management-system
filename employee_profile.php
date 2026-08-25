@@ -1,14 +1,17 @@
 <?php
 
-session_start();
-
-if ($_SESSION['role'] != 'Admin') {
-    $_GET['id'] = $_SESSION['employee_id'];
-}
-
 include 'includes/db.php';
+require_once 'includes/auth.php';
 
-$id = trim($_GET['id']);
+$current_employee_id = auth_require_authenticated($conn);
+
+if (auth_current_role() === 'Admin') {
+    $id = isset($_GET['id']) && is_string($_GET['id'])
+        ? trim($_GET['id'])
+        : '';
+} else {
+    $id = $current_employee_id;
+}
 
 $query =
     "SELECT * FROM users
