@@ -1,6 +1,9 @@
 <?php
 
 include 'includes/db.php';
+require_once 'includes/auth.php';
+
+auth_require_admin($conn);
 
 if (isset($_POST['submit'])) {
     $shift_name = $_POST['shift_name'];
