@@ -74,6 +74,8 @@ $user_result =
 $user =
     mysqli_fetch_assoc($user_result);
 
+$active_nav = 'dashboard';
+
 ?>
 
 <!DOCTYPE html>
@@ -99,85 +101,7 @@ $user =
 
     <div class="main-container">
 
-        <div class="sidebar">
-
-            <h2 style="color:white;">
-                CoreAxis CRM
-            </h2>
-
-            <a href="dashboard.php" class="active">
-                <i class="fa-solid fa-house"></i>
-                Dashboard
-            </a>
-
-            <a href="attendance.php">
-                <i class="fa-solid fa-calendar-check"></i>
-                Attendance
-            </a>
-
-            <a href="holidays.php">
-                <i class="fa-solid fa-plane"></i>
-                Holidays
-            </a>
-
-            <a href="salary.php">
-                <i class="fa-solid fa-money-bill"></i>
-                Salary
-            </a>
-
-            <?php if ($user['role'] == 'Admin') { ?>
-
-                <a href="employees.php">
-                    <i class="fa-solid fa-users"></i>
-                    Employees
-                </a>
-
-                <a href="add_employee.php">
-                    <i class="fa-solid fa-user-plus"></i>
-                    Add Employee
-                </a>
-
-                <a href="attendance_report.php">
-                    <i class="fa-solid fa-chart-column"></i>
-                    Attendance Report
-                </a>
-
-                <a href="salary_report.php">
-                    <i class="fa-solid fa-file-invoice-dollar"></i>
-                    Salary Report
-                </a>
-
-                <a href="manage_shift.php">
-                    <i class="fa-solid fa-clock"></i>
-                    Manage Shift
-                </a>
-
-                <a href="assign_shift.php">
-                    <i class="fa-solid fa-user-clock"></i>
-                    Assign Shift
-                </a>
-
-                <a href="view_assigned_shift.php">
-                    <i class="fa-solid fa-eye"></i>
-                    View Assigned Shift
-                </a>
-
-                <a href="manage_leave.php">
-                    Manage Leave
-                </a>
-
-            <?php } ?>
-
-            <a href="edit_profile.php">
-                <i class="fa fa-user-edit"></i> Edit Profile
-            </a>
-
-            <a href="logout.php">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                Logout
-            </a>
-
-        </div>
+        <?php include 'includes/navigation.php'; ?>
 
         <div class="content">
 

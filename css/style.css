@@ -1099,6 +1099,64 @@ table td {
     box-shadow: 0px 4px 12px rgba(37, 99, 235, 0.35);
 }
 
+.app-sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-sidebar .nav-brand {
+    display: block;
+    color: white;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin: 0 0 28px;
+    padding: 0 8px;
+    text-decoration: none;
+}
+
+.app-sidebar .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-sidebar .nav-section {
+    margin-top: 18px;
+}
+
+.app-sidebar .nav-section-label {
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    padding: 0 16px 8px;
+    text-transform: uppercase;
+}
+
+.app-sidebar .nav-section.is-active .nav-section-label {
+    color: #dbeafe;
+}
+
+.app-sidebar .nav-link {
+    margin-bottom: 4px;
+}
+
+.app-sidebar .nav-link i {
+    width: 18px;
+    text-align: center;
+}
+
+.app-sidebar .sidebar-footer {
+    margin-top: auto;
+    padding-top: 22px;
+}
+
+.app-sidebar .sidebar-footer .nav-link {
+    border-top: 1px solid rgba(203, 213, 225, 0.16);
+    border-radius: 0 0 12px 12px;
+    padding-top: 18px;
+}
+
 .content {
     flex: 1;
     padding: 35px;
