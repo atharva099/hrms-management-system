@@ -4,16 +4,90 @@ include 'includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 $employee_id = auth_require_admin($conn);
 
-$user_query = "SELECT * FROM users
-WHERE employee_id='$employee_id'";
+$user_statement = mysqli_prepare(
+    $conn,
+    'SELECT role FROM users WHERE employee_id = ? LIMIT 1'
+);
+mysqli_stmt_bind_param($user_statement, 's', $employee_id);
+mysqli_stmt_execute($user_statement);
+$user_result = mysqli_stmt_get_result($user_statement);
+mysqli_stmt_close($user_statement);
 
-$user_result = mysqli_query($conn, $user_query);
+$user = $user_result ? mysqli_fetch_assoc($user_result) : null;
 
-$user = mysqli_fetch_assoc($user_result);
-
-if ($user['role'] != 'Admin') {
+if (!$user || $user['role'] !== 'Admin') {
     header("Location: dashboard.php");
     exit();
+}
+
+function attendance_report_is_valid_date($date)
+{
+    if (!is_string($date) || !preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $date)) {
+        return false;
+    }
+
+    $date_value = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    $date_errors = DateTimeImmutable::getLastErrors();
+
+    return $date_value !== false
+        && ($date_errors === false || ($date_errors['warning_count'] === 0 && $date_errors['error_count'] === 0))
+        && $date_value->format('Y-m-d') === $date
+        && (int) $date_value->format('Y') >= 1000;
+}
+
+$has_any_filter_parameter = isset($_GET['employee_id'])
+    || isset($_GET['status'])
+    || isset($_GET['from_date'])
+    || isset($_GET['to_date']);
+
+$filter_employee_id = $_GET['employee_id'] ?? '';
+$filter_status = $_GET['status'] ?? '';
+$filter_from_date = $_GET['from_date'] ?? '';
+$filter_to_date = $_GET['to_date'] ?? '';
+
+foreach ([$filter_employee_id, $filter_status, $filter_from_date, $filter_to_date] as $filter_value) {
+    if (!is_string($filter_value)) {
+        http_response_code(400);
+        exit('Invalid attendance filter.');
+    }
+}
+
+if (
+    $filter_employee_id !== ''
+    && (
+        !preg_match('/^EMP[0-9]{1,17}$/iD', $filter_employee_id)
+        || preg_match('/^EMP0+$/iD', $filter_employee_id)
+    )
+) {
+    http_response_code(400);
+    exit('Invalid employee ID filter.');
+}
+
+$allowed_statuses = [
+    'Present',
+    'Absent',
+    'Leave',
+    'Late',
+    'Half Day',
+    'Late Half Day',
+    'Sunday Working'
+];
+if ($filter_status !== '' && !in_array($filter_status, $allowed_statuses, true)) {
+    http_response_code(400);
+    exit('Invalid status filter.');
+}
+
+if (
+    ($filter_from_date !== '' && !attendance_report_is_valid_date($filter_from_date))
+    || ($filter_to_date !== '' && !attendance_report_is_valid_date($filter_to_date))
+) {
+    http_response_code(400);
+    exit('Invalid date filter.');
+}
+
+if ($filter_from_date !== '' && $filter_to_date !== '' && $filter_from_date > $filter_to_date) {
+    http_response_code(400);
+    exit('Invalid date range.');
 }
 
 ?>
@@ -133,7 +207,7 @@ if ($user['role'] != 'Admin') {
                     <div class="profile-box">
 
                         Welcome,
-                        <?php echo $_SESSION['employee_id']; ?>
+                        <?php echo htmlspecialchars($employee_id, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
 
                     </div>
 
@@ -270,43 +344,43 @@ if ($user['role'] != 'Admin') {
                 <form method="GET" class="filter-form">
 
                     <input type="text" name="employee_id" placeholder="Employee ID"
-                        value="<?php echo isset($_GET['employee_id']) ? $_GET['employee_id'] : ''; ?>">
+                        value="<?php echo htmlspecialchars($filter_employee_id, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
 
                     <select name="status">
 
                         <option value="">All Status</option>
 
-                        <option value="Present" <?php if (isset($_GET['status']) && $_GET['status'] == 'Present')
+                        <option value="Present" <?php if ($filter_status === 'Present')
                             echo 'selected'; ?>>
                             Present
                         </option>
 
-                        <option value="Absent" <?php if (isset($_GET['status']) && $_GET['status'] == 'Absent')
+                        <option value="Absent" <?php if ($filter_status === 'Absent')
                             echo 'selected'; ?>>
                             Absent
                         </option>
 
-                        <option value="Leave" <?php if (isset($_GET['status']) && $_GET['status'] == 'Leave')
+                        <option value="Leave" <?php if ($filter_status === 'Leave')
                             echo 'selected'; ?>>
                             Leave
                         </option>
 
-                        <option value="Late" <?php if (isset($_GET['status']) && $_GET['status'] == 'Late')
+                        <option value="Late" <?php if ($filter_status === 'Late')
                             echo 'selected'; ?>>
                             Late
                         </option>
 
-                        <option value="Half Day" <?php if (isset($_GET['status']) && $_GET['status'] == 'Half Day')
+                        <option value="Half Day" <?php if ($filter_status === 'Half Day')
                             echo 'selected'; ?>>
                             Half Day
                         </option>
 
-                        <option value="Late Half Day" <?php if (isset($_GET['status']) && $_GET['status'] == 'Late Half Day')
+                        <option value="Late Half Day" <?php if ($filter_status === 'Late Half Day')
                             echo 'selected'; ?>>
                             Late Half Day
                         </option>
 
-                        <option value="Sunday Working" <?php if (isset($_GET['status']) && $_GET['status'] == 'Sunday Working')
+                        <option value="Sunday Working" <?php if ($filter_status === 'Sunday Working')
                             echo 'selected'; ?>>
                             Sunday Working
                         </option>
@@ -314,10 +388,10 @@ if ($user['role'] != 'Admin') {
                     </select>
 
                     <input type="date" name="from_date"
-                        value="<?php echo isset($_GET['from_date']) ? $_GET['from_date'] : ''; ?>">
+                        value="<?php echo htmlspecialchars($filter_from_date, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
 
                     <input type="date" name="to_date"
-                        value="<?php echo isset($_GET['to_date']) ? $_GET['to_date'] : ''; ?>">
+                        value="<?php echo htmlspecialchars($filter_to_date, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
 
                     <button type="submit" class="filter-btn">
                         Filter
@@ -350,51 +424,73 @@ if ($user['role'] != 'Admin') {
 
                         <?php
 
-                        $today = date('Y-m-d');
+                        $query = 'SELECT * FROM attendance WHERE 1';
+                        $parameter_types = '';
+                        $query_parameters = [];
 
-                        $query = "SELECT * FROM attendance WHERE 1";
-
-                        if (
-                            !isset($_GET['employee_id']) &&
-                            !isset($_GET['status']) &&
-                            !isset($_GET['from_date']) &&
-                            !isset($_GET['to_date'])
-                        ) {
-
-                            $query .= " AND attendance_date='$today'";
+                        if (!$has_any_filter_parameter) {
+                            $query .= ' AND attendance_date = ?';
+                            $parameter_types .= 's';
+                            $query_parameters[] = date('Y-m-d');
                         }
 
-                        if (isset($_GET['employee_id']) && $_GET['employee_id'] != '') {
-
-                            $employee_id_filter = $_GET['employee_id'];
-
-                            $query .= " AND employee_id='$employee_id_filter'";
+                        if ($filter_employee_id !== '') {
+                            $query .= ' AND employee_id = ?';
+                            $parameter_types .= 's';
+                            $query_parameters[] = $filter_employee_id;
                         }
 
-                        if (isset($_GET['status']) && $_GET['status'] != '') {
-
-                            $status_filter = $_GET['status'];
-
-                            $query .= " AND status='$status_filter'";
+                        if ($filter_status !== '') {
+                            $query .= ' AND status = ?';
+                            $parameter_types .= 's';
+                            $query_parameters[] = $filter_status;
                         }
 
-                        if (isset($_GET['from_date']) && $_GET['from_date'] != '') {
-
-                            $from_date = $_GET['from_date'];
-
-                            $query .= " AND attendance_date >= '$from_date'";
+                        if ($filter_from_date !== '') {
+                            $query .= ' AND attendance_date >= ?';
+                            $parameter_types .= 's';
+                            $query_parameters[] = $filter_from_date;
                         }
 
-                        if (isset($_GET['to_date']) && $_GET['to_date'] != '') {
-
-                            $to_date = $_GET['to_date'];
-
-                            $query .= " AND attendance_date <= '$to_date'";
+                        if ($filter_to_date !== '') {
+                            $query .= ' AND attendance_date <= ?';
+                            $parameter_types .= 's';
+                            $query_parameters[] = $filter_to_date;
                         }
 
-                        $query .= " ORDER BY attendance_date DESC";
+                        $query .= ' ORDER BY attendance_date DESC';
 
-                        $result = mysqli_query($conn, $query);
+                        $attendance_statement = mysqli_prepare($conn, $query);
+                        if ($attendance_statement === false) {
+                            http_response_code(500);
+                            exit('Unable to load attendance report.');
+                        }
+
+                        if ($query_parameters) {
+                            $bind_arguments = [$attendance_statement, $parameter_types];
+                            foreach (array_keys($query_parameters) as $parameter_index) {
+                                $bind_arguments[] = &$query_parameters[$parameter_index];
+                            }
+
+                            if (!call_user_func_array('mysqli_stmt_bind_param', $bind_arguments)) {
+                                mysqli_stmt_close($attendance_statement);
+                                http_response_code(500);
+                                exit('Unable to load attendance report.');
+                            }
+                        }
+
+                        if (!mysqli_stmt_execute($attendance_statement)) {
+                            mysqli_stmt_close($attendance_statement);
+                            http_response_code(500);
+                            exit('Unable to load attendance report.');
+                        }
+
+                        $result = mysqli_stmt_get_result($attendance_statement);
+                        mysqli_stmt_close($attendance_statement);
+                        if ($result === false) {
+                            http_response_code(500);
+                            exit('Unable to load attendance report.');
+                        }
 
                         while ($row = mysqli_fetch_assoc($result)) {
 
@@ -402,26 +498,26 @@ if ($user['role'] != 'Admin') {
                             <tr>
 
                                 <td>
-                                    <?php echo $row['employee_id']; ?>
+                                    <?php echo htmlspecialchars((string) $row['employee_id'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $row['attendance_date']; ?>
+                                    <?php echo htmlspecialchars((string) $row['attendance_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $row['check_in']; ?>
+                                    <?php echo htmlspecialchars((string) $row['check_in'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $row['check_out']; ?>
+                                    <?php echo htmlspecialchars((string) $row['check_out'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                 </td>
 
                                 <td>
 
                                     <?php
 
-                                    $status = $row['status'];
+                                    $status = (string) ($row['status'] ?? '');
 
                                     if ($status == 'Present') {
 
@@ -453,7 +549,7 @@ if ($user['role'] != 'Admin') {
 
                                     } else {
 
-                                        echo "<span class='badge bg-dark'>" . htmlspecialchars($status) . "</span>";
+                                        echo "<span class='badge bg-dark'>" . htmlspecialchars($status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</span>";
 
                                     }
 
@@ -462,7 +558,7 @@ if ($user['role'] != 'Admin') {
                                 </td>
 
                                 <td>
-                                    <?php echo $row['working_hours']; ?>
+                                    <?php echo htmlspecialchars((string) $row['working_hours'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                 </td>
 
                             </tr>
