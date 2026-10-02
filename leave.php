@@ -1,14 +1,9 @@
 <?php
 
-session_start();
-
-if (!isset($_SESSION['employee_id'])) {
-    header("Location:index.php");
-}
-
 include 'includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
+$employee_id = auth_require_authenticated($conn);
 
-$employee_id = $_SESSION['employee_id'];
 
 $user_query = "SELECT * FROM users
 WHERE employee_id='$employee_id'";
@@ -18,7 +13,7 @@ $user_result = mysqli_query($conn, $user_query);
 $user = mysqli_fetch_assoc($user_result);
 
 if (isset($_POST['apply_leave'])) {
-    $employee_id = $_SESSION['employee_id'];
+    $employee_id = auth_current_employee_id();
 
     $leave_type = $_POST['leave_type'];
 

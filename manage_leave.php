@@ -1,10 +1,9 @@
 <?php
 
-session_start();
-
 include 'includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
+$current_employee = auth_require_admin($conn);
 
-$current_employee = $_SESSION['employee_id'];
 
 $user_query = "SELECT * FROM users
 WHERE employee_id='$current_employee'";
@@ -15,6 +14,7 @@ $user = mysqli_fetch_assoc($user_result);
 
 if ($user['role'] != 'Admin') {
     header("Location: dashboard.php");
+    exit();
 }
 
 $query =
@@ -194,15 +194,21 @@ $result =
                             if ($row['status'] == 'Pending') {
                                 ?>
 
-                                <a href="approve_leave.php?id=<?php echo $row['id']; ?>"
-                                    style="background:green;color:white;padding:8px 15px;border-radius:5px;text-decoration:none;">
-                                    Approve
-                                </a>
+                                <form method="POST" action="approve_leave.php" style="display:inline;">
+                                    <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
+                                    <?php echo csrf_field(); ?>
+                                    <button type="submit" style="background:green;color:white;padding:8px 15px;border-radius:5px;border:0;cursor:pointer;">
+                                        Approve
+                                    </button>
+                                </form>
 
-                                <a href="reject_leave.php?id=<?php echo $row['id']; ?>"
-                                    style="background:red;color:white;padding:8px 15px;border-radius:5px;text-decoration:none;">
-                                    Reject
-                                </a>
+                                <form method="POST" action="reject_leave.php" style="display:inline;">
+                                    <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
+                                    <?php echo csrf_field(); ?>
+                                    <button type="submit" style="background:red;color:white;padding:8px 15px;border-radius:5px;border:0;cursor:pointer;">
+                                        Reject
+                                    </button>
+                                </form>
 
                                 <?php
                             } elseif ($row['status'] == 'Approved') {

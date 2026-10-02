@@ -1,14 +1,8 @@
 <?php
 
-session_start();
-
-if (!isset($_SESSION['employee_id'])) {
-    header("Location: index.php");
-}
-
 include 'includes/db.php';
-
-$employee_id = $_SESSION['employee_id'];
+require_once __DIR__ . '/includes/auth.php';
+$employee_id = auth_require_admin($conn);
 
 $user_query = "SELECT * FROM users
 WHERE employee_id='$employee_id'";
@@ -19,6 +13,7 @@ $user = mysqli_fetch_assoc($user_result);
 
 if ($user['role'] != 'Admin') {
     header("Location: dashboard.php");
+    exit();
 }
 
 ?>
@@ -208,6 +203,13 @@ if ($user['role'] != 'Admin') {
     AND attendance_date='$today'"
             ));
 
+            $late_half_day_count = mysqli_num_rows(mysqli_query(
+                $conn,
+                "SELECT DISTINCT employee_id FROM attendance
+    WHERE status='Late Half Day'
+    AND attendance_date='$today'"
+            ));
+
             ?>
 
             <div class="stats-box">
@@ -244,6 +246,13 @@ if ($user['role'] != 'Admin') {
                     <h6>Half Day</h6>
                     <h3 class="text-secondary">
                         <?php echo $half_day_count; ?>
+                    </h3>
+                </div>
+
+                <div class="card">
+                    <h6>Late Half Day</h6>
+                    <h3 class="text-warning">
+                        <?php echo $late_half_day_count; ?>
                     </h3>
                 </div>
 
@@ -290,6 +299,11 @@ if ($user['role'] != 'Admin') {
                         <option value="Half Day" <?php if (isset($_GET['status']) && $_GET['status'] == 'Half Day')
                             echo 'selected'; ?>>
                             Half Day
+                        </option>
+
+                        <option value="Late Half Day" <?php if (isset($_GET['status']) && $_GET['status'] == 'Late Half Day')
+                            echo 'selected'; ?>>
+                            Late Half Day
                         </option>
 
                         <option value="Sunday Working" <?php if (isset($_GET['status']) && $_GET['status'] == 'Sunday Working')
@@ -428,6 +442,10 @@ if ($user['role'] != 'Admin') {
                                     } elseif ($status == 'Half Day') {
 
                                         echo "<span class='badge bg-secondary'>Half Day</span>";
+
+                                    } elseif ($status == 'Late Half Day') {
+
+                                        echo "<span class='badge bg-warning text-dark'>Late Half Day</span>";
 
                                     } elseif ($status == 'Sunday Working') {
 
