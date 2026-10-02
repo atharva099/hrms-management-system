@@ -1,44 +1,44 @@
 <?php
 
-session_start();
+include 'includes/db.php';
+require_once 'includes/auth.php';
 
-if (!isset($_SESSION['employee_id'])) {
-    header("Location: index.php");
+$employee_id = auth_require_authenticated($conn);
+$is_admin = auth_current_role() === 'Admin';
+
+function salaryScopedResult($conn, $query, $is_admin, $employee_id)
+{
+    if ($is_admin) {
+        return mysqli_query($conn, $query);
+    }
+
+    $statement = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($statement, 's', $employee_id);
+    mysqli_stmt_execute($statement);
+    $result = mysqli_stmt_get_result($statement);
+    mysqli_stmt_close($statement);
+
+    return $result;
 }
 
-include 'includes/db.php';
+if (isset($_POST['process_payroll'])) {
+    auth_require_admin($conn);
 
-$employee_id = $_SESSION['employee_id'];
+    $process_month = isset($_POST['process_month']) && is_string($_POST['process_month'])
+        ? trim($_POST['process_month'])
+        : '';
 
-$user_query = "SELECT * FROM users
-WHERE employee_id='$employee_id'";
-
-$user_result = mysqli_query($conn, $user_query);
-
-$user = mysqli_fetch_assoc($user_result);
-
-$is_admin = ($user['role'] == 'Admin');
-
-if (
-    $is_admin &&
-    isset($_POST['process_payroll'])
-) {
-
-    $process_month =
-        $_POST['process_month'];
-
-    $check_pending_query = "
+    $check_pending_query = mysqli_prepare($conn, "
     SELECT COUNT(*) AS total
     FROM salaries
-    WHERE salary_month='$process_month'
+    WHERE salary_month=?
     AND payment_status='Pending'
-    ";
+    ");
 
-    $check_pending_result =
-        mysqli_query(
-            $conn,
-            $check_pending_query
-        );
+    mysqli_stmt_bind_param($check_pending_query, 's', $process_month);
+    mysqli_stmt_execute($check_pending_query);
+    $check_pending_result = mysqli_stmt_get_result($check_pending_query);
+    mysqli_stmt_close($check_pending_query);
 
     $check_pending =
         mysqli_fetch_assoc(
@@ -47,14 +47,16 @@ if (
 
     if ($check_pending['total'] > 0) {
 
-        mysqli_query(
-            $conn,
-            "UPDATE salaries
+        $process_statement = mysqli_prepare($conn, "
+            UPDATE salaries
             SET payment_status='Paid',
                 payment_date=CURDATE()
-            WHERE salary_month='$process_month'
-            AND payment_status='Pending'"
-        );
+            WHERE salary_month=?
+            AND payment_status='Pending'
+        ");
+        mysqli_stmt_bind_param($process_statement, 's', $process_month);
+        mysqli_stmt_execute($process_statement);
+        mysqli_stmt_close($process_statement);
 
         header(
             "Location: salary.php?success=payroll_processed"
@@ -72,31 +74,37 @@ if (
 
 
 if (isset($_POST['generate_salary'])) {
+    auth_require_admin($conn);
 
-    $employee_id = $_POST['employee_id'];
+    $salary_employee_id = isset($_POST['employee_id']) && is_string($_POST['employee_id'])
+        ? trim($_POST['employee_id'])
+        : '';
 
-    $salary_month = $_POST['salary_month'];
+    $salary_month = isset($_POST['salary_month']) && is_string($_POST['salary_month']) ? trim($_POST['salary_month']) : '';
 
-    $basic_salary = $_POST['basic_salary'];
+    $basic_salary = isset($_POST['basic_salary']) && is_numeric($_POST['basic_salary']) ? $_POST['basic_salary'] : 0;
 
-    $incentive = $_POST['incentive'];
+    $incentive = isset($_POST['incentive']) && is_numeric($_POST['incentive']) ? $_POST['incentive'] : 0;
 
     $month_number = date('m', strtotime($salary_month));
     $year_number = date('Y');
 
     $month_filter = $year_number . "-" . $month_number;
 
-    $late_query = "SELECT COUNT(*) AS total_late
+    $late_query = mysqli_prepare($conn, "SELECT COUNT(*) AS total_late
 
 FROM attendance
 
-WHERE employee_id='$employee_id'
+WHERE employee_id=?
 
 AND status='Late'
 
-AND attendance_date LIKE '$month_filter%'";
+AND attendance_date LIKE CONCAT(?, '%')");
 
-    $late_result = mysqli_query($conn, $late_query);
+    mysqli_stmt_bind_param($late_query, 'ss', $salary_employee_id, $month_filter);
+    mysqli_stmt_execute($late_query);
+    $late_result = mysqli_stmt_get_result($late_query);
+    mysqli_stmt_close($late_query);
 
     $late_row = mysqli_fetch_assoc($late_result);
 
@@ -104,17 +112,20 @@ AND attendance_date LIKE '$month_filter%'";
 
 
 
-    $halfday_query = "SELECT COUNT(*) AS total_halfday
+    $halfday_query = mysqli_prepare($conn, "SELECT COUNT(*) AS total_halfday
 
 FROM attendance
 
-WHERE employee_id='$employee_id'
+WHERE employee_id=?
 
 AND status='Half Day'
 
-AND attendance_date LIKE '$month_filter%'";
+AND attendance_date LIKE CONCAT(?, '%')");
 
-    $halfday_result = mysqli_query($conn, $halfday_query);
+    mysqli_stmt_bind_param($halfday_query, 'ss', $salary_employee_id, $month_filter);
+    mysqli_stmt_execute($halfday_query);
+    $halfday_result = mysqli_stmt_get_result($halfday_query);
+    mysqli_stmt_close($halfday_query);
 
     $halfday_row = mysqli_fetch_assoc($halfday_result);
 
@@ -122,17 +133,20 @@ AND attendance_date LIKE '$month_filter%'";
 
 
 
-    $absent_query = "SELECT COUNT(*) AS total_absent
+    $absent_query = mysqli_prepare($conn, "SELECT COUNT(*) AS total_absent
 
 FROM attendance
 
-WHERE employee_id='$employee_id'
+WHERE employee_id=?
 
 AND status='Absent'
 
-AND attendance_date LIKE '$month_filter%'";
+AND attendance_date LIKE CONCAT(?, '%')");
 
-    $absent_result = mysqli_query($conn, $absent_query);
+    mysqli_stmt_bind_param($absent_query, 'ss', $salary_employee_id, $month_filter);
+    mysqli_stmt_execute($absent_query);
+    $absent_result = mysqli_stmt_get_result($absent_query);
+    mysqli_stmt_close($absent_query);
 
     $absent_row = mysqli_fetch_assoc($absent_result);
 
@@ -159,19 +173,22 @@ AND attendance_date LIKE '$month_filter%'";
 
         );
 
-    $check_query = "
+    $check_query = mysqli_prepare($conn, '
 
 SELECT *
 
 FROM salaries
 
-WHERE employee_id='$employee_id'
+WHERE employee_id=?
 
-AND salary_month='$salary_month'
+AND salary_month=?
 
-";
+');
 
-    $check_result = mysqli_query($conn, $check_query);
+    mysqli_stmt_bind_param($check_query, 'ss', $salary_employee_id, $salary_month);
+    mysqli_stmt_execute($check_query);
+    $check_result = mysqli_stmt_get_result($check_query);
+    mysqli_stmt_close($check_query);
 
     if (mysqli_num_rows($check_result) > 0) {
 
@@ -180,7 +197,7 @@ AND salary_month='$salary_month'
 
     } else {
 
-        $query = "INSERT INTO salaries
+        $query = mysqli_prepare($conn, "INSERT INTO salaries
 (
 employee_id,
 salary_month,
@@ -194,18 +211,23 @@ payment_status
 )
 VALUES
 (
-'$employee_id',
-'$salary_month',
-'$basic_salary',
-'$incentive',
-'$late_deduction',
-'$halfday_deduction',
-'$absent_deduction',
-'$final_salary',
-'Pending'
-)";
+?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
+ )");
 
-        mysqli_query($conn, $query);
+        mysqli_stmt_bind_param(
+            $query,
+            'ssdddddd',
+            $salary_employee_id,
+            $salary_month,
+            $basic_salary,
+            $incentive,
+            $late_deduction,
+            $halfday_deduction,
+            $absent_deduction,
+            $final_salary
+        );
+        mysqli_stmt_execute($query);
+        mysqli_stmt_close($query);
 
         echo "
     <div class='salary-success-alert'>
@@ -258,26 +280,32 @@ if ($is_admin) {
     LEFT JOIN users
     ON salaries.employee_id = users.employee_id
 
-    WHERE salaries.employee_id='$employee_id'
+    WHERE salaries.employee_id=?
 
     ORDER BY salaries.id DESC
 
     ";
 }
 
-$result = mysqli_query($conn, $query);
+if ($is_admin) {
+    $result = mysqli_query($conn, $query);
+} else {
+    $salary_list_statement = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($salary_list_statement, 's', $employee_id);
+    mysqli_stmt_execute($salary_list_statement);
+    $result = mysqli_stmt_get_result($salary_list_statement);
+}
 
 $total_records = mysqli_num_rows($result);
 
 /* Total Generated Salaries */
 
-$total_salary_query = "
+$total_salary_query = $is_admin ? "
 SELECT COUNT(*) AS total_salaries
 FROM salaries
-";
+" : 'SELECT COUNT(*) AS total_salaries FROM salaries WHERE employee_id=?';
 
-$total_salary_result =
-    mysqli_query($conn, $total_salary_query);
+$total_salary_result = salaryScopedResult($conn, $total_salary_query, $is_admin, $employee_id);
 
 $total_salary =
     mysqli_fetch_assoc($total_salary_result);
@@ -287,13 +315,12 @@ $total_salary =
 
 /* Total Payroll Processed */
 
-$payroll_query = "
+$payroll_query = $is_admin ? "
 SELECT SUM(final_salary) AS total_payroll
 FROM salaries
-";
+" : 'SELECT SUM(final_salary) AS total_payroll FROM salaries WHERE employee_id=?';
 
-$payroll_result =
-    mysqli_query($conn, $payroll_query);
+$payroll_result = salaryScopedResult($conn, $payroll_query, $is_admin, $employee_id);
 
 $payroll =
     mysqli_fetch_assoc($payroll_result);
@@ -303,28 +330,26 @@ $payroll =
 
 /* Employees Paid */
 
-$paid_query = "
+$paid_query = $is_admin ? "
 SELECT COUNT(DISTINCT employee_id)
 AS total_employees
 FROM salaries
-";
+" : 'SELECT COUNT(*) AS total_employees FROM salaries WHERE employee_id=?';
 
-$paid_result =
-    mysqli_query($conn, $paid_query);
+$paid_result = salaryScopedResult($conn, $paid_query, $is_admin, $employee_id);
 
 $paid =
     mysqli_fetch_assoc($paid_result);
 
 /* Pending Payments */
 
-$pending_query = "
+$pending_query = $is_admin ? "
 SELECT COUNT(*) AS total_pending
 FROM salaries
 WHERE payment_status='Pending'
-";
+" : "SELECT COUNT(*) AS total_pending FROM salaries WHERE payment_status='Pending' AND employee_id=?";
 
-$pending_result =
-    mysqli_query($conn, $pending_query);
+$pending_result = salaryScopedResult($conn, $pending_query, $is_admin, $employee_id);
 
 $pending =
     mysqli_fetch_assoc($pending_result);
@@ -335,14 +360,22 @@ $pending =
 
 $current_month = date('F Y');
 
-$current_month_query = "
+$current_month_query = $is_admin ? "
 SELECT SUM(final_salary) AS month_payroll
 FROM salaries
-WHERE salary_month='$current_month'
-";
+WHERE salary_month=?
+" : 'SELECT SUM(final_salary) AS month_payroll FROM salaries WHERE salary_month=? AND employee_id=?';
 
-$current_month_result =
-    mysqli_query($conn, $current_month_query);
+if ($is_admin) {
+    $current_month_statement = mysqli_prepare($conn, $current_month_query);
+    mysqli_stmt_bind_param($current_month_statement, 's', $current_month);
+} else {
+    $current_month_statement = mysqli_prepare($conn, $current_month_query);
+    mysqli_stmt_bind_param($current_month_statement, 'ss', $current_month, $employee_id);
+}
+mysqli_stmt_execute($current_month_statement);
+$current_month_result = mysqli_stmt_get_result($current_month_statement);
+mysqli_stmt_close($current_month_statement);
 
 $current_month_payroll =
     mysqli_fetch_assoc($current_month_result);
@@ -774,13 +807,21 @@ color:#374151;
 
                         <?php
 
-                        $month_query =
-                            "SELECT DISTINCT salary_month
-         FROM salaries
-         ORDER BY id DESC";
-
-                        $month_result =
-                            mysqli_query($conn, $month_query);
+                        if ($is_admin) {
+                            $month_result = mysqli_query(
+                                $conn,
+                                'SELECT DISTINCT salary_month FROM salaries ORDER BY id DESC'
+                            );
+                        } else {
+                            $month_statement = mysqli_prepare(
+                                $conn,
+                                'SELECT DISTINCT salary_month FROM salaries WHERE employee_id=? ORDER BY id DESC'
+                            );
+                            mysqli_stmt_bind_param($month_statement, 's', $employee_id);
+                            mysqli_stmt_execute($month_statement);
+                            $month_result = mysqli_stmt_get_result($month_statement);
+                            mysqli_stmt_close($month_statement);
+                        }
 
                         while (
                             $month_row =
@@ -974,9 +1015,10 @@ font-weight:500;
 
     <script>
 
-        document
-            .getElementById("employee_id")
-            .addEventListener("change", function () {
+        const employeeSelect = document.getElementById("employee_id");
+
+        if (employeeSelect) {
+            employeeSelect.addEventListener("change", function () {
 
                 let employeeId = this.value;
 
@@ -1004,6 +1046,7 @@ font-weight:500;
                     });
 
             });
+        }
 
     </script>
 

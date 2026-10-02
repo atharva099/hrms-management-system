@@ -1,6 +1,8 @@
 <?php
 
 include 'includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
+auth_require_admin($conn);
 
 date_default_timezone_set("Asia/Kolkata");
 

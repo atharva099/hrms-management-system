@@ -1,18 +1,19 @@
 <?php
 
-session_start();
-include("includes/db.php");
+include 'includes/db.php';
+require_once 'includes/auth.php';
 
-if (!isset($_SESSION['employee_id'])) {
-    header("Location:index.php");
+$current_employee_id = auth_require_authenticated($conn);
+$salary_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, [
+    'options' => ['min_range' => 1],
+]);
+
+if ($salary_id === false || $salary_id === null) {
+    header('Location: salary.php');
+    exit();
 }
 
-$id = $_GET['id'];
-
-$query = mysqli_query(
-    $conn,
-
-    "SELECT salaries.*, users.full_name,
+$query = 'SELECT salaries.*, users.full_name,
 users.department,
 users.designation,
 users.email,
@@ -23,10 +24,26 @@ FROM salaries
 JOIN users
 ON salaries.employee_id = users.employee_id
 
-WHERE salaries.id='$id'"
-);
+WHERE salaries.id = ?';
 
-$row = mysqli_fetch_assoc($query);
+if (auth_current_role() === 'Admin') {
+    $statement = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($statement, 'i', $salary_id);
+} else {
+    $query .= ' AND salaries.employee_id = ?';
+    $statement = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($statement, 'is', $salary_id, $current_employee_id);
+}
+
+mysqli_stmt_execute($statement);
+$result = mysqli_stmt_get_result($statement);
+$row = mysqli_fetch_assoc($result);
+mysqli_stmt_close($statement);
+
+if (!$row) {
+    header('Location: salary.php');
+    exit();
+}
 
 ?>
 

@@ -1,15 +1,12 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/auth.php';
+auth_start_session();
 
 date_default_timezone_set("Asia/Kolkata");
 
-if (!isset($_SESSION['employee_id'])) {
-    header("Location: index.php");
-}
-
 include 'includes/db.php';
+$employee_id = auth_require_authenticated($conn);
 
-$employee_id = $_SESSION['employee_id'];
 
 $date = date("Y-m-d");
 

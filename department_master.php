@@ -210,6 +210,8 @@ $result =
 
                 <form method="POST" action="add_department.php">
 
+                    <?php echo csrf_field(); ?>
+
                     <input type="text" name="department_name" placeholder="Department Name" required>
 
                     <button type="submit" class="generate-btn">
@@ -286,20 +288,20 @@ $result =
 
                                     <?php if ($row['status'] == 'Active') { ?>
 
-                                        <a href="deactivate_department.php?id=<?php echo $row['id']; ?>"
-                                            onclick="return confirm('Deactivate this department?');">
-
-                                            Deactivate
-
-                                        </a>
+                                        <form method="POST" action="deactivate_department.php" style="display:inline;"
+                                            onsubmit="return confirm('Deactivate this department?');">
+                                            <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
+                                            <?php echo csrf_field(); ?>
+                                            <button type="submit">Deactivate</button>
+                                        </form>
 
                                     <?php } else { ?>
 
-                                        <a href="activate_department.php?id=<?php echo $row['id']; ?>">
-
-                                            Activate
-
-                                        </a>
+                                        <form method="POST" action="activate_department.php" style="display:inline;">
+                                            <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
+                                            <?php echo csrf_field(); ?>
+                                            <button type="submit">Activate</button>
+                                        </form>
 
                                     <?php } ?>
 

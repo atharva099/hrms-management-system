@@ -376,18 +376,16 @@ if($row['status'] == 'Active')
 
 ?>
 
-<a href="deactivate_employee.php?id=<?php echo $row['employee_id']; ?>"
-class="reset-btn"
-style="text-decoration:none;"
-onclick="
-return confirm(
-'Deactivate this employee?\n\nEmployee data, salary records and attendance history will be preserved.'
-)
-">
+<form method="POST" action="deactivate_employee.php" style="display:inline;"
+onsubmit="return confirm('Deactivate this employee?\n\nEmployee data, salary records and attendance history will be preserved.');">
+<input type="hidden" name="employee_id" value="<?php echo htmlspecialchars($row['employee_id'], ENT_QUOTES, 'UTF-8'); ?>">
+<?php echo csrf_field(); ?>
+<button type="submit" class="reset-btn" style="text-decoration:none; border:0; cursor:pointer;">
 
 <i class="fa-solid fa-user-slash"></i>
 
-</a>
+</button>
+</form>
 
 <?php
 
@@ -397,18 +395,16 @@ else
 
 ?>
 
-<a href="activate_employee.php?id=<?php echo $row['employee_id']; ?>"
-class="view-slip-btn"
-style="text-decoration:none;"
-onclick="
-return confirm(
-'Activate this employee account?'
-)
-">
+<form method="POST" action="activate_employee.php" style="display:inline;"
+onsubmit="return confirm('Activate this employee account?');">
+<input type="hidden" name="employee_id" value="<?php echo htmlspecialchars($row['employee_id'], ENT_QUOTES, 'UTF-8'); ?>">
+<?php echo csrf_field(); ?>
+<button type="submit" class="view-slip-btn" style="text-decoration:none; border:0; cursor:pointer;">
 
 <i class="fa-solid fa-user-check"></i>
 
-</a>
+</button>
+</form>
 
 <?php
 

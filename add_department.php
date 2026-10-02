@@ -5,8 +5,26 @@ require_once 'includes/auth.php';
 
 auth_require_admin($conn);
 
-$department_name =
-    trim($_POST['department_name']);
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    header('Allow: POST', true, 405);
+    exit('Method Not Allowed');
+}
+
+if (!csrf_validate_token($_POST['csrf_token'] ?? null)) {
+    http_response_code(403);
+    exit('Forbidden');
+}
+
+if (!isset($_POST['department_name']) || !is_string($_POST['department_name'])) {
+    http_response_code(400);
+    exit('Invalid department name');
+}
+
+$department_name = trim($_POST['department_name']);
+if ($department_name === '') {
+    http_response_code(400);
+    exit('Invalid department name');
+}
 
 $check =
     mysqli_query(

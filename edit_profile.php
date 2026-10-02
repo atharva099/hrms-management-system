@@ -1,14 +1,8 @@
 <?php
 
-session_start();
-
 include("includes/db.php");
-
-if (!isset($_SESSION['employee_id'])) {
-    header("Location:index.php");
-}
-
-$employee_id = $_SESSION['employee_id'];
+require_once __DIR__ . '/includes/auth.php';
+$employee_id = auth_require_authenticated($conn);
 
 $query = mysqli_query(
     $conn,

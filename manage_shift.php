@@ -193,11 +193,11 @@ if (isset($_GET['error']) && $_GET['error'] == 'update_failed') {
 
                 <td>
 
-                    <a href="delete_shift.php?id=<?php echo $row['id']; ?>">
-
-                        Delete
-
-                    </a>
+                    <form method="POST" action="delete_shift.php" style="display:inline;">
+                        <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
+                        <?php echo csrf_field(); ?>
+                        <button type="submit">Delete</button>
+                    </form>
 
                     |
 

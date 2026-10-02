@@ -5,13 +5,31 @@ require_once 'includes/auth.php';
 
 auth_require_admin($conn);
 
-$id = $_GET['id'];
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    header('Allow: POST', true, 405);
+    exit('Method Not Allowed');
+}
+
+if (!csrf_validate_token($_POST['csrf_token'] ?? null)) {
+    http_response_code(403);
+    exit('Forbidden');
+}
+
+$id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($id === false) {
+    http_response_code(400);
+    exit('Invalid leave ID');
+}
 
 $get_leave_query = "SELECT * FROM leaves WHERE id='$id'";
 
 $get_leave_result = mysqli_query($conn, $get_leave_query);
 
 $leave = mysqli_fetch_assoc($get_leave_result);
+if (!$leave) {
+    header("Location: manage_leave.php");
+    exit();
+}
 
 $employee_id = $leave['employee_id'];
 
@@ -59,5 +77,6 @@ while ($current_date <= $end_date) {
 }
 
 header("Location: manage_leave.php");
+exit();
 
 ?>

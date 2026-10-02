@@ -1,10 +1,8 @@
 <?php
 
-session_start();
-
 include 'includes/db.php';
-
-$user_id = $_SESSION['employee_id'];
+require_once __DIR__ . '/includes/auth.php';
+$user_id = auth_require_authenticated($conn);
 
 $user_query =
     "SELECT * FROM users

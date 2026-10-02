@@ -1,10 +1,10 @@
 <?php
 
-session_start();
-
 include 'includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
+auth_require_role($conn, ['Admin', 'Employee']);
 
-if ($_SESSION['role'] == 'Admin') {
+if (auth_current_role() === 'Admin') {
     $query = "SELECT
             users.employee_id,
             users.full_name,
@@ -21,7 +21,7 @@ ON users.shift_id = shifts.id
 
           ORDER BY users.full_name";
 } else {
-    $employee_id = $_SESSION['employee_id'];
+    $employee_id = auth_current_employee_id();
 
     $query = "SELECT
             users.employee_id,
