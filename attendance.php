@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/attendance_time.php';
+require_once __DIR__ . '/includes/attendance_workflow.php';
 auth_start_session();
 
 date_default_timezone_set("Asia/Kolkata");
@@ -8,200 +10,101 @@ include 'includes/db.php';
 $employee_id = auth_require_authenticated($conn);
 
 
-$date = date("Y-m-d");
+$application_now = new DateTimeImmutable('now', new DateTimeZone('Asia/Kolkata'));
+$date = $application_now->format('Y-m-d');
+$time = $application_now->format('H:i:s');
+$now = $application_now->format('Y-m-d H:i:s');
+$day = $application_now->format('l');
+$message = '';
+$timestamp_schema_ready = attendance_has_datetime_columns($conn);
+$row_version_schema_ready = attendance_has_row_version_column($conn);
+$checkin_policy_schema_ready = attendance_has_checkin_policy_schema($conn);
 
-$day = date("l");
-
-$time = date("H:i:s");
-
-if (isset($_POST['checkout'])) {
-
-    $get_time_query = "SELECT check_in
-FROM attendance
-WHERE employee_id='$employee_id'
-AND attendance_date='$date'";
-
-    $get_time_result = mysqli_query($conn, $get_time_query);
-
-    $row = mysqli_fetch_assoc($get_time_result);
-
-    if (!$row || !$row['check_in']) {
-
-        die("Invalid Check-In Record");
-
+if (isset($_POST['checkin']) || isset($_POST['checkout'])) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        http_response_code(405);
+        exit('Method Not Allowed');
+    }
+    if (!csrf_validate_token($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+    if (!$timestamp_schema_ready) {
+        http_response_code(503);
+        exit('Attendance timestamp migration is required before attendance actions are available.');
+    }
+    if (isset($_POST['checkin']) && !$checkin_policy_schema_ready) {
+        http_response_code(503);
+        exit('Check-in policy migration is required before check-in is available.');
+    }
+    if (isset($_POST['checkout']) && !$row_version_schema_ready) {
+        http_response_code(503);
+        exit('Attendance versioning migration is required before checkout is available.');
     }
 
-    $check_in = $row['check_in'];
-
-    $check_in_time = strtotime($check_in);
-
-    $check_out_time = strtotime($time);
-
-    $total_seconds = $check_out_time - $check_in_time;
-
-    $total_hours = floor($total_seconds / 3600);
-
-    $total_minutes = floor(($total_seconds % 3600) / 60);
-
-    $working_hours = $total_hours . " hrs " . $total_minutes . " mins";
-
-    $current_query = "
-SELECT status
-FROM attendance
-WHERE employee_id='$employee_id'
-AND attendance_date='$date'
-";
-
-    $current_result = mysqli_query($conn, $current_query);
-
-    $current_attendance = mysqli_fetch_assoc($current_result);
-
-    $current_status = $current_attendance['status'];
-
-    if ($current_status == 'Sunday Working') {
-
-        $status = "Sunday Working";
-
-    } elseif ($total_hours < 4) {
-
-        $status = "Absent";
-
-    } elseif ($total_hours < 8) {
-
-        if ($current_status == 'Late') {
-
-            $status = "Late Half Day";
-
-        } else {
-
-            $status = "Half Day";
-
-        }
-
-    } else {
-
-        if ($current_status == 'Late') {
-
-            $status = "Late";
-
-        } else {
-
-            $status = "Present";
-
-        }
-
+    $workflow_result = isset($_POST['checkin'])
+        ? attendance_workflow_checkin($conn, $employee_id, $application_now)
+        : attendance_workflow_checkout($conn, $employee_id, $application_now);
+    if (isset($workflow_result['http_status'])) {
+        http_response_code($workflow_result['http_status']);
+        exit($workflow_result['message']);
     }
-    $query = "UPDATE attendance
-
-SET check_out='$time',
-working_hours='$working_hours',
-status='$status'
-
-WHERE employee_id='$employee_id'
-
-AND attendance_date='$date'";
-    mysqli_query($conn, $query);
-    echo "Check-Out Successful";
+    $message = $workflow_result['message'];
 }
-if
-(isset($_POST['checkin'])) {
-    $leave_check_query = "SELECT * FROM attendance
-WHERE employee_id='$employee_id'
-AND attendance_date='$date'
-AND status='Leave'";
 
-    $leave_check_result =
-        mysqli_query($conn, $leave_check_query);
-
-    if (mysqli_num_rows($leave_check_result) > 0) {
-
-        echo "
-    <script>
-    alert('You are already on approved leave today');
-    </script>
-    ";
-
+$checkin_decision = null;
+$checkin_policy_message = '';
+$attendance_business_date = $date;
+if (!$checkin_policy_schema_ready) {
+    $checkin_policy_message = 'Check-in is temporarily unavailable because the shift policy migration is missing or invalid.';
+} else {
+    $ui_shift_lookup = attendance_load_active_checkin_shift($conn, $employee_id, false);
+    if (!$ui_shift_lookup['ok']) {
+        $checkin_policy_message = 'Check-in is temporarily unavailable because the assigned shift policy could not be verified.';
+    } elseif (!$ui_shift_lookup['shift']) {
+        $checkin_policy_message = 'An active shift is not assigned. Please contact HR.';
     } else {
-        $check_query = "SELECT * FROM attendance
-    WHERE employee_id='$employee_id'
-    AND attendance_date='$date'";
-        $check_result = mysqli_query($conn, $check_query);
+        $ui_shift = $ui_shift_lookup['shift'];
+        $checkin_decision = attendance_checkin_eligibility(
+            $now,
+            (string) $ui_shift['in_time'],
+            (string) $ui_shift['out_time'],
+            $ui_shift['early_checkin_minutes'],
+            $ui_shift['late_checkin_cutoff_minutes']
+        );
+        $ui_shift_id = filter_var((string) $ui_shift['shift_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if (
-            mysqli_num_rows($check_result) >
-            0
+            !empty($checkin_decision['eligible'])
+            && (!$ui_shift_id || trim((string) $ui_shift['shift_name']) === ''
+                || !attendance_shift_late_threshold($checkin_decision['business_date'], (string) $ui_shift['late_after']))
         ) {
-
-            echo "Attendance Already Marked Today";
-
-        } else {
-
-            $shift_query = "SELECT shifts.late_after
-
-FROM users
-
-INNER JOIN shifts
-
-ON users.shift_id = shifts.id
-
-WHERE users.employee_id='$employee_id'";
-
-            $shift_result = mysqli_query($conn, $shift_query);
-
-            $shift = mysqli_fetch_assoc($shift_result);
-
-            if ($shift) {
-
-                $shift_time = $shift['late_after'];
-
-            } else {
-
-                echo "
-    <script>
-        alert('Shift not assigned. Please contact HR.');
-        window.location='attendance.php';
-    </script>
-    ";
-
-                exit();
-            }
-
-            if ($day == "Sunday") {
-
-                $status = "Sunday Working";
-
-            } else {
-
-                if ($time > $shift_time) {
-
-                    $status = "Late";
-
-                } else {
-
-                    $status = "Present";
-                }
-            }
-
-            $query = "INSERT INTO attendance
-    (employee_id, attendance_date, check_in, status)
-
-    VALUES
-
-    ('$employee_id','$date','$time','$status')";
-
-            mysqli_query($conn, $query);
-
-            echo "Check-In Successful";
+            $checkin_decision = attendance_checkin_decision(false, 'invalid_schedule');
         }
-
+        if (!empty($checkin_decision['business_date'])) {
+            $attendance_business_date = $checkin_decision['business_date'];
+        }
+        if (empty($checkin_decision['eligible'])) {
+            $checkin_policy_message = attendance_checkin_policy_message($checkin_decision);
+        }
     }
 }
-$today_query = "SELECT * FROM attendance
-WHERE employee_id='$employee_id'
-AND attendance_date='$date'";
 
-$today_result = mysqli_query($conn, $today_query);
-
-$today_attendance = mysqli_fetch_assoc($today_result);
+$today_statement = mysqli_prepare($conn, 'SELECT * FROM attendance WHERE employee_id = ? AND attendance_date = ? ORDER BY id DESC LIMIT 1');
+mysqli_stmt_bind_param($today_statement, 'ss', $employee_id, $attendance_business_date);
+mysqli_stmt_execute($today_statement);
+$today_result = mysqli_stmt_get_result($today_statement);
+$today_attendance = $today_result ? mysqli_fetch_assoc($today_result) : null;
+mysqli_stmt_close($today_statement);
+$open_attendance = null;
+$open_attendance_issue = false;
+if ($timestamp_schema_ready) {
+    $open_candidates = attendance_find_current_open_checkout_candidates($conn, $employee_id, $now);
+    if ($open_candidates === false || count($open_candidates) > 1) {
+        $open_attendance_issue = true;
+    } else {
+        $open_attendance = $open_candidates[0] ?? null;
+    }
+}
 
 ?>
 
@@ -228,6 +131,19 @@ $today_attendance = mysqli_fetch_assoc($today_result);
                 </h1>
             </div>
 
+            <?php if ($message !== '') { ?>
+                <p><?php echo htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></p>
+            <?php } ?>
+            <?php if (!$timestamp_schema_ready) { ?>
+                <p>Attendance actions are temporarily unavailable until the timestamp migration is applied. Existing records remain viewable.</p>
+            <?php } ?>
+            <?php if ($checkin_policy_message !== '') { ?>
+                <p><?php echo htmlspecialchars($checkin_policy_message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></p>
+            <?php } ?>
+            <?php if ($timestamp_schema_ready && !$row_version_schema_ready) { ?>
+                <p>Checkout is temporarily unavailable until attendance versioning is deployed. Existing records remain viewable.</p>
+            <?php } ?>
+
             <div class="table-container">
 
                 <table class="attendance-table">
@@ -242,11 +158,11 @@ $today_attendance = mysqli_fetch_assoc($today_result);
 
                     <?php
 
-                    $query = "SELECT * FROM attendance
-            WHERE employee_id='$employee_id'
-            ORDER BY id DESC";
-
-                    $result = mysqli_query($conn, $query);
+                    $query = 'SELECT * FROM attendance WHERE employee_id = ? ORDER BY id DESC';
+                    $statement = mysqli_prepare($conn, $query);
+                    mysqli_stmt_bind_param($statement, 's', $employee_id);
+                    mysqli_stmt_execute($statement);
+                    $result = mysqli_stmt_get_result($statement);
 
                     while ($row = mysqli_fetch_assoc($result)) {
 
@@ -255,28 +171,28 @@ $today_attendance = mysqli_fetch_assoc($today_result);
                         <tr>
 
                             <td>
-                                <?php echo $row['attendance_date']; ?>
+                                <?php echo htmlspecialchars((string) $row['attendance_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
-                                <?php echo $row['check_in']; ?>
+                                <?php echo htmlspecialchars((string) (($timestamp_schema_ready && !empty($row['check_in_at'])) ? $row['check_in_at'] : $row['check_in']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
-                                <?php echo $row['check_out']; ?>
+                                <?php echo htmlspecialchars((string) (($timestamp_schema_ready && !empty($row['check_out_at'])) ? $row['check_out_at'] : $row['check_out']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
-                                <?php echo $row['status']; ?>
+                                <?php echo htmlspecialchars((string) $row['status'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
-                                <?php echo $row['working_hours']; ?>
+                                <?php echo htmlspecialchars((string) $row['working_hours'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                         </tr>
 
-                    <?php } ?>
+                    <?php } mysqli_stmt_close($statement); ?>
 
                 </table>
 
@@ -286,9 +202,45 @@ $today_attendance = mysqli_fetch_assoc($today_result);
 
                 <form method="POST">
 
+                    <?php echo csrf_field(); ?>
+
                     <?php
 
-                    if (!$today_attendance) {
+                    if (!$timestamp_schema_ready) {
+                        ?>
+                        <button type="button" class="completed-btn" disabled>Migration Required</button>
+                        <?php
+                    } else if ($open_attendance_issue) {
+                        ?>
+                        <button type="button" class="completed-btn" disabled>Attendance Needs Review</button>
+                        <?php
+                    } else if ($open_attendance) {
+                        ?>
+                        <?php if (!$row_version_schema_ready) { ?>
+                        <button type="button" class="completed-btn" disabled>Versioning Migration Required</button>
+                        <?php } else { ?>
+                        <button type="submit" name="checkout" class="checkout-btn">Check Out</button>
+                        <?php } ?>
+                        <?php
+                    } else if ($today_attendance && $today_attendance['status'] == 'Leave') {
+
+                        ?>
+                            <button type="button" class="completed-btn">Approved Leave</button>
+                        <?php
+
+                    } else if ($today_attendance) {
+
+                        ?>
+                            <button type="button" class="completed-btn">Attendance Completed</button>
+                        <?php
+
+                    } else if (!$checkin_policy_schema_ready || !$checkin_decision || empty($checkin_decision['eligible'])) {
+
+                        ?>
+                            <button type="button" class="completed-btn" disabled>Check-in Unavailable</button>
+                        <?php
+
+                    } else if (!$today_attendance) {
 
                         ?>
 
@@ -297,47 +249,6 @@ $today_attendance = mysqli_fetch_assoc($today_result);
                             Check In
 
                         </button>
-
-                        <?php
-
-                    } else if (
-                        $today_attendance['status'] == 'Leave'
-                    ) {
-
-                        ?>
-
-                            <button type="button" class="completed-btn">
-
-                                Approved Leave
-
-                            </button>
-
-                        <?php
-
-                    } else if (
-                        $today_attendance['check_out'] == NULL
-                        || $today_attendance['check_out'] == ''
-                    ) {
-
-                        ?>
-
-                                <button type="submit" name="checkout" class="checkout-btn">
-
-                                    Check Out
-
-                                </button>
-
-                        <?php
-
-                    } else {
-
-                        ?>
-
-                                <button type="button" class="completed-btn">
-
-                                    Attendance Completed
-
-                                </button>
 
                         <?php
 

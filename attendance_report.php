@@ -2,7 +2,10 @@
 
 include 'includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
-$employee_id = auth_require_admin($conn);
+require_once __DIR__ . '/includes/attendance_time.php';
+auth_require_admin($conn);
+$employee_id = auth_current_employee_id();
+$attendance_timestamp_schema_ready = attendance_has_datetime_columns($conn);
 
 $user_statement = mysqli_prepare(
     $conn,
@@ -506,11 +509,11 @@ if ($filter_from_date !== '' && $filter_to_date !== '' && $filter_from_date > $f
                                 </td>
 
                                 <td>
-                                    <?php echo htmlspecialchars((string) $row['check_in'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    <?php echo htmlspecialchars((string) (($attendance_timestamp_schema_ready && !empty($row['check_in_at'])) ? $row['check_in_at'] : $row['check_in']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo htmlspecialchars((string) $row['check_out'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    <?php echo htmlspecialchars((string) (($attendance_timestamp_schema_ready && !empty($row['check_out_at'])) ? $row['check_out_at'] : $row['check_out']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                 </td>
 
                                 <td>
