@@ -99,17 +99,67 @@ if (isset($_POST['generate_salary'])) {
     $salary_employee_id = isset($_POST['employee_id']) && is_string($_POST['employee_id'])
         ? trim($_POST['employee_id'])
         : '';
+    $salary_month = isset($_POST['salary_month']) && is_string($_POST['salary_month'])
+        ? trim($_POST['salary_month'])
+        : '';
+    $month_names = [
+        'January' => '01', 'February' => '02', 'March' => '03', 'April' => '04',
+        'May' => '05', 'June' => '06', 'July' => '07', 'August' => '08',
+        'September' => '09', 'October' => '10', 'November' => '11', 'December' => '12'
+    ];
+    $valid_employee_id = preg_match('/^EMP[0-9]{3,17}$/iD', $salary_employee_id) === 1;
+    $valid_month = preg_match(
+        '/^(January|February|March|April|May|June|July|August|September|October|November|December) ([0-9]{4})$/D',
+        $salary_month,
+        $month_matches
+    ) === 1;
+    if (!$valid_employee_id || !$valid_month || (int) $month_matches[2] < 1000) {
+        http_response_code(400);
+        $error_message = 'Please select a valid employee and payroll month.';
+    } else {
+        $month_number = $month_names[$month_matches[1]];
+        $year_number = $month_matches[2];
+        $month_filter = $year_number . '-' . $month_number;
+        $transaction_started = false;
 
-    $salary_month = isset($_POST['salary_month']) && is_string($_POST['salary_month']) ? trim($_POST['salary_month']) : '';
+        try {
+            if (!mysqli_begin_transaction($conn)) {
+                throw new RuntimeException('transaction_start');
+            }
+            $transaction_started = true;
 
-    $basic_salary = isset($_POST['basic_salary']) && is_numeric($_POST['basic_salary']) ? $_POST['basic_salary'] : 0;
+            // salaries has no employee/month unique key; this lock serializes this endpoint's attempts.
+            // Other writers must use the same lock until a reviewed database constraint exists.
+            $employee_statement = mysqli_prepare(
+                $conn,
+                "SELECT salary, incentive FROM users
+                 WHERE employee_id = ? AND role = 'Employee' AND status = 'Active'
+                 LIMIT 1 FOR UPDATE"
+            );
+            if ($employee_statement === false) {
+                throw new RuntimeException('employee_query');
+            }
+            if (!mysqli_stmt_bind_param($employee_statement, 's', $salary_employee_id)
+                || !mysqli_stmt_execute($employee_statement)) {
+                mysqli_stmt_close($employee_statement);
+                throw new RuntimeException('employee_query');
+            }
+            $employee_result = mysqli_stmt_get_result($employee_statement);
+            $employee_row = $employee_result ? mysqli_fetch_assoc($employee_result) : null;
+            mysqli_stmt_close($employee_statement);
 
-    $incentive = isset($_POST['incentive']) && is_numeric($_POST['incentive']) ? $_POST['incentive'] : 0;
-
-    $month_number = date('m', strtotime($salary_month));
-    $year_number = date('Y');
-
-    $month_filter = $year_number . "-" . $month_number;
+            if (!$employee_row) {
+                throw new DomainException('inactive_employee');
+            }
+            if (!is_numeric($employee_row['salary']) || !is_numeric($employee_row['incentive'])
+                || !is_finite((float) $employee_row['salary']) || !is_finite((float) $employee_row['incentive'])
+                || (float) $employee_row['salary'] < 0 || (float) $employee_row['incentive'] < 0
+                || (float) $employee_row['salary'] > 99999999.99
+                || (float) $employee_row['incentive'] > 99999999.99) {
+                throw new DomainException('invalid_employee_pay');
+            }
+            $basic_salary = (float) $employee_row['salary'];
+            $incentive = (float) $employee_row['incentive'];
 
     $late_query = mysqli_prepare($conn, "SELECT COUNT(*) AS total_late
 
@@ -121,8 +171,12 @@ AND status='Late'
 
 AND attendance_date LIKE CONCAT(?, '%')");
 
-    mysqli_stmt_bind_param($late_query, 'ss', $salary_employee_id, $month_filter);
-    mysqli_stmt_execute($late_query);
+    if ($late_query === false
+        || !mysqli_stmt_bind_param($late_query, 'ss', $salary_employee_id, $month_filter)
+        || !mysqli_stmt_execute($late_query)) {
+        if ($late_query instanceof mysqli_stmt) { mysqli_stmt_close($late_query); }
+        throw new RuntimeException('attendance_query');
+    }
     $late_result = mysqli_stmt_get_result($late_query);
     mysqli_stmt_close($late_query);
 
@@ -142,8 +196,12 @@ AND status='Half Day'
 
 AND attendance_date LIKE CONCAT(?, '%')");
 
-    mysqli_stmt_bind_param($halfday_query, 'ss', $salary_employee_id, $month_filter);
-    mysqli_stmt_execute($halfday_query);
+    if ($halfday_query === false
+        || !mysqli_stmt_bind_param($halfday_query, 'ss', $salary_employee_id, $month_filter)
+        || !mysqli_stmt_execute($halfday_query)) {
+        if ($halfday_query instanceof mysqli_stmt) { mysqli_stmt_close($halfday_query); }
+        throw new RuntimeException('attendance_query');
+    }
     $halfday_result = mysqli_stmt_get_result($halfday_query);
     mysqli_stmt_close($halfday_query);
 
@@ -163,8 +221,12 @@ AND status='Absent'
 
 AND attendance_date LIKE CONCAT(?, '%')");
 
-    mysqli_stmt_bind_param($absent_query, 'ss', $salary_employee_id, $month_filter);
-    mysqli_stmt_execute($absent_query);
+    if ($absent_query === false
+        || !mysqli_stmt_bind_param($absent_query, 'ss', $salary_employee_id, $month_filter)
+        || !mysqli_stmt_execute($absent_query)) {
+        if ($absent_query instanceof mysqli_stmt) { mysqli_stmt_close($absent_query); }
+        throw new RuntimeException('attendance_query');
+    }
     $absent_result = mysqli_stmt_get_result($absent_query);
     mysqli_stmt_close($absent_query);
 
@@ -205,13 +267,18 @@ AND salary_month=?
 
 ');
 
-    mysqli_stmt_bind_param($check_query, 'ss', $salary_employee_id, $salary_month);
-    mysqli_stmt_execute($check_query);
+    if ($check_query === false
+        || !mysqli_stmt_bind_param($check_query, 'ss', $salary_employee_id, $salary_month)
+        || !mysqli_stmt_execute($check_query)) {
+        if ($check_query instanceof mysqli_stmt) { mysqli_stmt_close($check_query); }
+        throw new RuntimeException('duplicate_query');
+    }
     $check_result = mysqli_stmt_get_result($check_query);
     mysqli_stmt_close($check_query);
 
     if (mysqli_num_rows($check_result) > 0) {
-
+        mysqli_rollback($conn);
+        $transaction_started = false;
         $error_message =
             "Salary already generated for this employee and month";
 
@@ -234,7 +301,7 @@ VALUES
 ?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
  )");
 
-        mysqli_stmt_bind_param(
+        if ($query === false || !mysqli_stmt_bind_param(
             $query,
             'ssdddddd',
             $salary_employee_id,
@@ -245,16 +312,31 @@ VALUES
             $halfday_deduction,
             $absent_deduction,
             $final_salary
-        );
-        mysqli_stmt_execute($query);
+        ) || !mysqli_stmt_execute($query)) {
+            if ($query instanceof mysqli_stmt) { mysqli_stmt_close($query); }
+            throw new RuntimeException('salary_insert');
+        }
         mysqli_stmt_close($query);
+        if (!mysqli_commit($conn)) {
+            throw new RuntimeException('salary_commit');
+        }
+        $transaction_started = false;
 
         echo "
     <div class='salary-success-alert'>
     Salary Generated Successfully
     </div>";
     }
-
+        } catch (DomainException $exception) {
+            if ($transaction_started) { mysqli_rollback($conn); $transaction_started = false; }
+            $error_message = $exception->getMessage() === 'inactive_employee'
+                ? 'Please select an active employee.'
+                : 'Employee salary details are incomplete or invalid.';
+        } catch (Throwable $exception) {
+            if ($transaction_started) { mysqli_rollback($conn); $transaction_started = false; }
+            $error_message = 'Salary could not be generated. Please try again.';
+        }
+    }
 }
 
 ?>

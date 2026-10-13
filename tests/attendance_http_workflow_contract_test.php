@@ -70,7 +70,7 @@ $assert(strpos($auto, 'if (!attendance_schedule_completed($attendance[\'schedule
 $assert(strpos($auto, 'AND row_version = ? AND check_in_at IS NOT NULL AND check_out_at IS NULL') !== false, 'auto-absence update is conditional on the observed version and open state');
 $assert(strpos($auto, '$already_half_day') !== false, 'auto-absence skips the exact existing no-op state');
 
-$resolve = $read('resolve_leave_conflict.php');
+$resolve = str_replace(["\r\n", "\r"], "\n", $read('resolve_leave_conflict.php'));
 $before($resolve, 'auth_require_admin($conn)', 'if (($_SERVER[\'REQUEST_METHOD\'] ?? \'\') !== \'POST\')', 'conflict resolution authorizes Admin before request processing');
 $before($resolve, 'if (($_SERVER[\'REQUEST_METHOD\'] ?? \'\') !== \'POST\')', 'if (!csrf_validate_token($_POST[\'csrf_token\'] ?? null))', 'conflict resolution enforces POST before CSRF');
 $before($resolve, 'if (!csrf_validate_token($_POST[\'csrf_token\'] ?? null))', '$parse_positive_id = static function', 'conflict resolution validates CSRF before parsing mutation fields');
