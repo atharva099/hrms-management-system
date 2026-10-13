@@ -24,6 +24,16 @@ function salaryScopedResult($conn, $query, $is_admin, $employee_id)
 if (isset($_POST['process_payroll'])) {
     auth_require_admin($conn);
 
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        header('Allow: POST', true, 405);
+        exit('Method Not Allowed');
+    }
+
+    if (!csrf_validate_token($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        exit('Request could not be verified.');
+    }
+
     $process_month = isset($_POST['process_month']) && is_string($_POST['process_month'])
         ? trim($_POST['process_month'])
         : '';
@@ -75,6 +85,16 @@ if (isset($_POST['process_payroll'])) {
 
 if (isset($_POST['generate_salary'])) {
     auth_require_admin($conn);
+
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        header('Allow: POST', true, 405);
+        exit('Method Not Allowed');
+    }
+
+    if (!csrf_validate_token($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        exit('Request could not be verified.');
+    }
 
     $salary_employee_id = isset($_POST['employee_id']) && is_string($_POST['employee_id'])
         ? trim($_POST['employee_id'])
@@ -561,6 +581,8 @@ text-align:center;
 
                 <form method="POST" class="salary-form">
 
+                    <?php echo csrf_field(); ?>
+
                     <select name="employee_id" id="employee_id" required>
 
                         <option value="">
@@ -700,6 +722,8 @@ color:#dc2626;
 
 
                 <form method="POST">
+
+                    <?php echo csrf_field(); ?>
 
                     <label style="
 display:block;

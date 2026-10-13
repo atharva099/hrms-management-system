@@ -42,14 +42,15 @@ Attendance development checkpoint: `5cbded95ab2e029e6dd4135ac728f5e7cd7db5a0`
   Relevant PHP lint and `git diff --check` passed. These are not authenticated
   HTTP tests.
 - Operator-reported authenticated HTTP coverage includes normal login and
-  early-window UI/server rejection for EMP9806. Duplicate HTTP actions,
+  early-window UI/server rejection for a dedicated clone test employee. Duplicate HTTP actions,
   CSRF failure/success, role/ownership authorization, and overnight checkout
   over HTTP remain unverified. Leave-conflict behavior has static contracts
   and separate clone workflow work, but full authenticated HTTP conflict
   coverage remains pending.
 - The overnight database-backed workflow operated through the extracted PHP
   workflow in CLI integration, not through an authenticated HTTP session.
-- The checked-in migration candidates are schema-qualified to
+- Clone-specific migration candidates currently exist as untracked files under
+  `database/migrations/`; they are schema-qualified to
   `coreaxis_crm_runtime_test` and explicitly clone-oriented. They are not
   production deployment migrations and must not be presented or executed as
   such. Production rollout requires separately reviewed production-safe DDL
