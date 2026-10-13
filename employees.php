@@ -5,18 +5,31 @@ require_once 'includes/auth.php';
 
 $employee_id = auth_require_admin($conn);
 
+$escape_html = static function ($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+};
+
 $search = "";
 
-if (isset($_GET['search']) && !empty(trim($_GET['search']))) {
-    $search = $_GET['search'];
-
-    $query =
-        "SELECT * FROM users
-    WHERE employee_id LIKE '%$search%'
-    OR full_name LIKE '%$search%'
-    OR department LIKE '%$search%'";
+if (isset($_GET['search']) && is_string($_GET['search']) && trim($_GET['search']) !== '') {
+    $search = trim($_GET['search']);
+    $search_pattern = '%' . $search . '%';
+    $search_statement = mysqli_prepare($conn, 'SELECT * FROM users WHERE employee_id LIKE ? OR full_name LIKE ? OR department LIKE ?');
+    if ($search_statement === false) {
+        http_response_code(500);
+        exit('Employee search is unavailable.');
+    }
+    mysqli_stmt_bind_param($search_statement, 'sss', $search_pattern, $search_pattern, $search_pattern);
+    if (!mysqli_stmt_execute($search_statement)) {
+        mysqli_stmt_close($search_statement);
+        http_response_code(500);
+        exit('Employee search is unavailable.');
+    }
+    $result = mysqli_stmt_get_result($search_statement);
+    mysqli_stmt_close($search_statement);
 } else {
     $query = "SELECT * FROM users";
+    $result = mysqli_query($conn, $query);
 }
 
 $total_query = "SELECT * FROM users";
@@ -47,14 +60,12 @@ mysqli_query($conn,$inactive_query);
 $total_inactive =
 mysqli_num_rows($inactive_result);
 
-$result = mysqli_query($conn, $query);
-
-$user_query = "SELECT * FROM users
-WHERE employee_id='$employee_id'";
-
-$user_result = mysqli_query($conn, $user_query);
-
-$user = mysqli_fetch_assoc($user_result);
+$user_statement = mysqli_prepare($conn, 'SELECT employee_id FROM users WHERE employee_id = ? LIMIT 1');
+mysqli_stmt_bind_param($user_statement, 's', $employee_id);
+mysqli_stmt_execute($user_statement);
+$user_result = mysqli_stmt_get_result($user_statement);
+$user = $user_result ? mysqli_fetch_assoc($user_result) : null;
+mysqli_stmt_close($user_statement);
 
 $success_message = "";
 
@@ -162,7 +173,7 @@ if (isset($_GET['error'])) {
                     <form method="GET" style="display:flex; gap:10px; align-items:center;">
 
                         <input type="text" name="search" class="search-box" placeholder="Search employee..."
-                            value="<?php echo $search; ?>">
+                            value="<?php echo $escape_html($search); ?>">
 
                         <button type="submit" style="width:auto; padding:10px 20px; margin-top:0;">
 
@@ -186,7 +197,7 @@ font-weight:600;">
 
                     <div class="profile-box">
                         Welcome,
-                        <?php echo $user['employee_id']; ?>
+                        <?php echo $escape_html($user['employee_id'] ?? $employee_id); ?>
                     </div>
 
                 </div>
@@ -206,7 +217,7 @@ border-radius:8px;
 font-weight:600;
 ">
 
-<?php echo $success_message; ?>
+<?php echo $escape_html($success_message); ?>
 
 </div>
 
@@ -292,7 +303,11 @@ padding:14px 24px;">
 
                         while ($row = mysqli_fetch_assoc($result)) {
 
-                            $imagePath = "images/" . $row['employee_id'] . ".jpg";
+                            $safe_employee_id = is_string($row['employee_id'])
+                                && preg_match('/^EMP[0-9]{3,17}$/iD', $row['employee_id'])
+                                ? $row['employee_id']
+                                : '';
+                            $imagePath = $safe_employee_id !== '' ? "images/" . $safe_employee_id . ".jpg" : 'images/default.png';
 
                             if (!file_exists($imagePath)) {
                                 $imagePath = "images/default.png";
@@ -304,7 +319,7 @@ padding:14px 24px;">
 
                                 <td>
 
-                                    <img src="<?php echo $imagePath; ?>" width="55" height="55" style="
+                                    <img src="<?php echo $escape_html($imagePath); ?>" width="55" height="55" style="
                                  border-radius:50%;
                                  object-fit:cover;
                                  border:3px solid #2563eb;">
@@ -312,19 +327,19 @@ padding:14px 24px;">
                                 </td>
 
                                 <td>
-                                    <?php echo $row['employee_id']; ?>
+                                    <?php echo $escape_html($row['employee_id']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $row['full_name']; ?>
+                                    <?php echo $escape_html($row['full_name']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $row['department']; ?>
+                                    <?php echo $escape_html($row['department']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $row['designation']; ?>
+                                    <?php echo $escape_html($row['designation']); ?>
                                 </td>
 
                                 <td>
@@ -355,14 +370,14 @@ padding:14px 24px;">
 
                                 <td>
 
-                                    <a href="employee_profile.php?id=<?php echo $row['employee_id']; ?>"
+                                    <a href="employee_profile.php?id=<?php echo rawurlencode($row['employee_id']); ?>"
                                         class="view-slip-btn">
 
                                         <i class="fa-solid fa-eye"></i>
 
                                     </a>
 
-                                    <a href="edit_employee.php?id=<?php echo $row['employee_id']; ?>" class="filter-btn"
+                                    <a href="edit_employee.php?id=<?php echo rawurlencode($row['employee_id']); ?>" class="filter-btn"
                                         style="text-decoration:none;">
 
                                         <i class="fa-solid fa-pen"></i>
@@ -378,7 +393,7 @@ if($row['status'] == 'Active')
 
 <form method="POST" action="deactivate_employee.php" style="display:inline;"
 onsubmit="return confirm('Deactivate this employee?\n\nEmployee data, salary records and attendance history will be preserved.');">
-<input type="hidden" name="employee_id" value="<?php echo htmlspecialchars($row['employee_id'], ENT_QUOTES, 'UTF-8'); ?>">
+<input type="hidden" name="employee_id" value="<?php echo $escape_html($row['employee_id']); ?>">
 <?php echo csrf_field(); ?>
 <button type="submit" class="reset-btn" style="text-decoration:none; border:0; cursor:pointer;">
 
@@ -397,7 +412,7 @@ else
 
 <form method="POST" action="activate_employee.php" style="display:inline;"
 onsubmit="return confirm('Activate this employee account?');">
-<input type="hidden" name="employee_id" value="<?php echo htmlspecialchars($row['employee_id'], ENT_QUOTES, 'UTF-8'); ?>">
+<input type="hidden" name="employee_id" value="<?php echo $escape_html($row['employee_id']); ?>">
 <?php echo csrf_field(); ?>
 <button type="submit" class="view-slip-btn" style="text-decoration:none; border:0; cursor:pointer;">
 

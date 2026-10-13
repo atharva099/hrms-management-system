@@ -4,18 +4,21 @@ include 'includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 $employee_id = auth_require_authenticated($conn);
 
-$user_query = "SELECT * FROM users
-WHERE employee_id='$employee_id'";
+$escape_html = static function ($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+};
 
-$user_result = mysqli_query($conn, $user_query);
+$user_statement = mysqli_prepare($conn, 'SELECT role FROM users WHERE employee_id = ? LIMIT 1');
+mysqli_stmt_bind_param($user_statement, 's', $employee_id);
+mysqli_stmt_execute($user_statement);
+$user_result = mysqli_stmt_get_result($user_statement);
+$user = $user_result ? mysqli_fetch_assoc($user_result) : null;
+mysqli_stmt_close($user_statement);
 
-$user = mysqli_fetch_assoc($user_result);
-
-$query = "SELECT * FROM leaves
-WHERE employee_id='$employee_id'
-ORDER BY id DESC";
-
-$result = mysqli_query($conn, $query);
+$leave_statement = mysqli_prepare($conn, 'SELECT * FROM leaves WHERE employee_id = ? ORDER BY id DESC');
+mysqli_stmt_bind_param($leave_statement, 's', $employee_id);
+mysqli_stmt_execute($leave_statement);
+$result = mysqli_stmt_get_result($leave_statement);
 
 ?>
 
@@ -128,7 +131,7 @@ $result = mysqli_query($conn, $query);
                 Leave History
             </a>
 
-            <?php if ($user['role'] == 'Admin') { ?>
+            <?php if (($user['role'] ?? '') === 'Admin') { ?>
 
                 <a href="employees.php">
                     Employees
@@ -181,19 +184,19 @@ $result = mysqli_query($conn, $query);
                     <tr>
 
                         <td style="padding:15px; text-align:center;">
-                            <?php echo $row['leave_type']; ?>
+                            <?php echo $escape_html($row['leave_type']); ?>
                         </td>
 
                         <td style="padding:15px; text-align:center;">
-                            <?php echo $row['from_date']; ?>
+                            <?php echo $escape_html($row['from_date']); ?>
                         </td>
 
                         <td style="padding:15px; text-align:center;">
-                            <?php echo $row['to_date']; ?>
+                            <?php echo $escape_html($row['to_date']); ?>
                         </td>
 
                         <td style="padding:15px; text-align:center;">
-                            <?php echo $row['reason']; ?>
+                            <?php echo $escape_html($row['reason']); ?>
                         </td>
 
                         <td style="padding:15px; text-align:center;">
@@ -223,6 +226,8 @@ $result = mysqli_query($conn, $query);
                     <?php
 
                 }
+
+                mysqli_stmt_close($leave_statement);
 
                 ?>
 

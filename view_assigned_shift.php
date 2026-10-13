@@ -3,6 +3,9 @@
 include 'includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 auth_require_role($conn, ['Admin', 'Employee']);
+$escape_html = static function ($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+};
 
 if (auth_current_role() === 'Admin') {
     $query = "SELECT
@@ -37,10 +40,17 @@ ON users.shift_id = shifts.id
           LEFT JOIN shifts
 ON users.shift_id = shifts.id
 
-          WHERE users.employee_id='$employee_id'";
+          WHERE users.employee_id=?";
+    $statement = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($statement, 's', $employee_id);
+    mysqli_stmt_execute($statement);
+    $result = mysqli_stmt_get_result($statement);
+    mysqli_stmt_close($statement);
 }
 
-$result = mysqli_query($conn, $query);
+if (auth_current_role() === 'Admin') {
+    $result = mysqli_query($conn, $query);
+}
 
 ?>
 
@@ -76,16 +86,16 @@ $result = mysqli_query($conn, $query);
 
             <tr>
 
-                <td><?php echo $row['employee_id']; ?></td>
+                <td><?php echo $escape_html($row['employee_id']); ?></td>
 
-                <td><?php echo $row['full_name']; ?></td>
+                <td><?php echo $escape_html($row['full_name']); ?></td>
 
-                <td><?php echo $row['department']; ?></td>
+                <td><?php echo $escape_html($row['department']); ?></td>
 
                 <td>
                     <?php
                     echo !empty($row['shift_name'])
-                        ? $row['shift_name']
+                        ? $escape_html($row['shift_name'])
                         : 'No Shift Assigned';
                     ?>
                 </td>
@@ -93,7 +103,7 @@ $result = mysqli_query($conn, $query);
                 <td>
                     <?php
                     echo !empty($row['in_time'])
-                        ? $row['in_time']
+                        ? $escape_html($row['in_time'])
                         : '-';
                     ?>
                 </td>
@@ -101,7 +111,7 @@ $result = mysqli_query($conn, $query);
                 <td>
                     <?php
                     echo !empty($row['out_time'])
-                        ? $row['out_time']
+                        ? $escape_html($row['out_time'])
                         : '-';
                     ?>
                 </td>
@@ -109,7 +119,7 @@ $result = mysqli_query($conn, $query);
                 <td>
                     <?php
                     echo !empty($row['late_after'])
-                        ? $row['late_after']
+                        ? $escape_html($row['late_after'])
                         : '-';
                     ?>
                 </td>

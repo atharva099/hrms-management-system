@@ -4,6 +4,9 @@ include 'includes/db.php';
 require_once 'includes/auth.php';
 
 $current_employee_id = auth_require_authenticated($conn);
+$escape_html = static function ($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+};
 $salary_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, [
     'options' => ['min_range' => 1],
 ]);
@@ -89,16 +92,17 @@ if (!$row) {
 
                 <?php
 
-                $image_path =
-                    "images/" .
-                    $row['employee_id'] .
-                    ".jpg";
+                $safe_employee_id = is_string($row['employee_id'])
+                    && preg_match('/^EMP[0-9]{3,17}$/iD', $row['employee_id'])
+                    ? $row['employee_id']
+                    : '';
+                $image_path = $safe_employee_id !== '' ? "images/{$safe_employee_id}.jpg" : 'images/default.png';
 
                 if (file_exists($image_path)) {
 
                     ?>
 
-                    <img src="<?php echo $image_path; ?>" class="employee-profile-image">
+                    <img src="<?php echo $escape_html($image_path); ?>" class="employee-profile-image" alt="Employee photo">
 
                     <?php
 
@@ -121,42 +125,42 @@ if (!$row) {
                 <tr>
                     <td><strong>Employee ID</strong></td>
                     <td>
-                        <?php echo $row['employee_id']; ?>
+                        <?php echo $escape_html($row['employee_id']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Employee Name</strong></td>
                     <td>
-                        <?php echo $row['full_name']; ?>
+                        <?php echo $escape_html($row['full_name']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Department</strong></td>
                     <td>
-                        <?php echo $row['department']; ?>
+                        <?php echo $escape_html($row['department']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Designation</strong></td>
                     <td>
-                        <?php echo $row['designation']; ?>
+                        <?php echo $escape_html($row['designation']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Email</strong></td>
                     <td>
-                        <?php echo $row['email']; ?>
+                        <?php echo $escape_html($row['email']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Phone</strong></td>
                     <td>
-                        <?php echo $row['phone']; ?>
+                        <?php echo $escape_html($row['phone']); ?>
                     </td>
                 </tr>
 
@@ -185,14 +189,14 @@ if (!$row) {
 
                     <td>
                         SLIP-
-                        <?php echo $row['id']; ?>
+                        <?php echo (int) $row['id']; ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Salary Month</strong></td>
                     <td>
-                        <?php echo $row['salary_month']; ?>
+                        <?php echo $escape_html($row['salary_month']); ?>
                     </td>
                 </tr>
 
@@ -205,14 +209,14 @@ if (!$row) {
                 <tr>
                     <td><strong>Basic Salary</strong></td>
                     <td>₹
-                        <?php echo $row['basic_salary']; ?>
+                        <?php echo $escape_html($row['basic_salary']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Incentive</strong></td>
                     <td>₹
-                        <?php echo $row['incentive']; ?>
+                        <?php echo $escape_html($row['incentive']); ?>
                     </td>
                 </tr>
 
@@ -225,21 +229,21 @@ if (!$row) {
                 <tr>
                     <td><strong>Late Deduction</strong></td>
                     <td>₹
-                        <?php echo $row['late_deduction']; ?>
+                        <?php echo $escape_html($row['late_deduction']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Half Day Deduction</strong></td>
                     <td>₹
-                        <?php echo $row['halfday_deduction']; ?>
+                        <?php echo $escape_html($row['halfday_deduction']); ?>
                     </td>
                 </tr>
 
                 <tr>
                     <td><strong>Absent Deduction</strong></td>
                     <td>₹
-                        <?php echo $row['absent_deduction'] ?? 0; ?>
+                        <?php echo $escape_html($row['absent_deduction'] ?? 0); ?>
                     </td>
                 </tr>
 
@@ -257,7 +261,7 @@ if (!$row) {
                             +
                             $row['absent_deduction'];
 
-                        echo $total_deduction;
+                        echo $escape_html($total_deduction);
 
                         ?>
                     </td>
@@ -267,7 +271,7 @@ if (!$row) {
                 <td>
                     <strong class="final-salary">
                         ₹
-                        <?php echo $row['final_salary']; ?>
+                        <?php echo $escape_html($row['final_salary']); ?>
                     </strong>
                 </td>
                 </tr>
@@ -298,7 +302,7 @@ if (!$row) {
 
                     <p>
                         ₹
-                        <?php echo $row['final_salary']; ?>
+                        <?php echo $escape_html($row['final_salary']); ?>
                     </p>
 
                 </div>

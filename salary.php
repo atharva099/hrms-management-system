@@ -5,6 +5,9 @@ require_once 'includes/auth.php';
 
 $employee_id = auth_require_authenticated($conn);
 $is_admin = auth_current_role() === 'Admin';
+$escape_html = static function ($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+};
 
 function salaryScopedResult($conn, $query, $is_admin, $employee_id)
 {
@@ -498,7 +501,7 @@ font-weight:600;
 text-align:center;
 ">
 
-            <?php echo $error_message; ?>
+            <?php echo $escape_html($error_message); ?>
 
         </div>
 
@@ -688,12 +691,12 @@ text-align:center;
 
                             ?>
 
-                            <option value="<?php echo $emp['employee_id']; ?>">
+                            <option value="<?php echo $escape_html($emp['employee_id']); ?>">
 
                                 <?php
-                                echo $emp['employee_id']
+                                echo $escape_html($emp['employee_id'])
                                     . " - "
-                                    . $emp['full_name'];
+                                    . $escape_html($emp['full_name']);
                                 ?>
 
                             </option>
@@ -841,9 +844,9 @@ color:#374151;
 
                             ?>
 
-                            <option value="<?php echo $month['salary_month']; ?>">
+                            <option value="<?php echo $escape_html($month['salary_month']); ?>">
 
-                                <?php echo $month['salary_month']; ?>
+                                <?php echo $escape_html($month['salary_month']); ?>
 
                             </option>
 
@@ -936,9 +939,9 @@ color:#374151;
 
                             ?>
 
-                            <option value="<?php echo $month_row['salary_month']; ?>">
+                            <option value="<?php echo $escape_html($month_row['salary_month']); ?>">
 
-                                <?php echo $month_row['salary_month']; ?>
+                                <?php echo $escape_html($month_row['salary_month']); ?>
 
                             </option>
 
@@ -994,9 +997,9 @@ font-weight:500;
 
             <?php while ($row = mysqli_fetch_assoc($result)) { ?>
 
-                <tr class="salary-row" data-name="<?php echo strtolower($row['full_name']); ?>"
-                    data-id="<?php echo strtolower($row['employee_id']); ?>"
-                    data-month="<?php echo strtolower($row['salary_month']); ?>">
+                <tr class="salary-row" data-name="<?php echo $escape_html(strtolower((string) $row['full_name'])); ?>"
+                    data-id="<?php echo $escape_html(strtolower((string) $row['employee_id'])); ?>"
+                    data-month="<?php echo $escape_html(strtolower((string) $row['salary_month'])); ?>">
 
                     <td>
 
@@ -1004,7 +1007,7 @@ font-weight:500;
 
                         <?php
                         echo str_pad(
-                            $row['id'],
+                            (string) (int) $row['id'],
                             4,
                             '0',
                             STR_PAD_LEFT
@@ -1014,13 +1017,13 @@ font-weight:500;
                     </td>
 
                     <?php if ($is_admin) { ?>
-                        <td><?php echo $row['employee_id']; ?></td>
+                        <td><?php echo $escape_html($row['employee_id']); ?></td>
 
-                        <td><?php echo $row['full_name']; ?></td>
+                        <td><?php echo $escape_html($row['full_name']); ?></td>
                     <?php } ?>
 
                     <td>
-                        <?php echo $row['salary_month']; ?>
+                        <?php echo $escape_html($row['salary_month']); ?>
                     </td>
 
                     <td>
@@ -1101,7 +1104,7 @@ font-weight:500;
 
                     <td>
 
-                        <a class="view-slip-btn" href="salary_slip.php?id=<?php echo $row['id']; ?>">
+                        <a class="view-slip-btn" href="salary_slip.php?id=<?php echo (int) $row['id']; ?>">
 
                             View Slip
 

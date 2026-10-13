@@ -7,14 +7,16 @@ date_default_timezone_set("Asia/Kolkata");
 
 include 'includes/db.php';
 $employee_id = auth_require_authenticated($conn);
+$escape_html = static function ($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+};
 
-
-$user_query = "SELECT * FROM users
-WHERE employee_id='$employee_id'";
-
-$user_result = mysqli_query($conn, $user_query);
-
-$user = mysqli_fetch_assoc($user_result);
+$user_query = mysqli_prepare($conn, 'SELECT * FROM users WHERE employee_id = ? LIMIT 1');
+mysqli_stmt_bind_param($user_query, 's', $employee_id);
+mysqli_stmt_execute($user_query);
+$user_result = mysqli_stmt_get_result($user_query);
+$user = $user_result ? mysqli_fetch_assoc($user_result) : null;
+mysqli_stmt_close($user_query);
 
 $total_employee_query =
     "SELECT COUNT(*) AS total FROM users";
@@ -58,18 +60,6 @@ $total_late_result =
 
 $total_late =
     mysqli_fetch_assoc($total_late_result);
-
-$employee_id = $_SESSION['employee_id'];
-
-$user_query =
-    "SELECT * FROM users
-WHERE employee_id='$employee_id'";
-
-$user_result =
-    mysqli_query($conn, $user_query);
-
-$user =
-    mysqli_fetch_assoc($user_result);
 
 $active_nav = 'dashboard';
 
@@ -164,7 +154,7 @@ $active_nav = 'dashboard';
                     <div class="profile-box">
 
                         Welcome,
-                        <?php echo $_SESSION['employee_id']; ?>
+                        <?php echo $escape_html($employee_id); ?>
 
                     </div>
 
@@ -197,7 +187,7 @@ $active_nav = 'dashboard';
 
                 <h3>
                     Logged In Employee ID :
-                    <?php echo $_SESSION['employee_id']; ?>
+                    <?php echo $escape_html($employee_id); ?>
                 </h3>
 
                 <p>
@@ -308,23 +298,23 @@ LIMIT 5"
                             <tr>
 
                                 <td>
-                                    <?php echo $recent['employee_id']; ?>
+                                    <?php echo $escape_html($recent['employee_id']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $recent['full_name']; ?>
+                                    <?php echo $escape_html($recent['full_name']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $recent['department']; ?>
+                                    <?php echo $escape_html($recent['department']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $recent['role']; ?>
+                                    <?php echo $escape_html($recent['role']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $recent['status']; ?>
+                                    <?php echo $escape_html($recent['status']); ?>
                                 </td>
 
                             </tr>
@@ -357,10 +347,10 @@ LIMIT 5"
 
                     <?php
 
-                    $image_path =
-                        "images/" .
-                        $_SESSION['employee_id'] .
-                        ".jpg";
+                    $safe_session_employee_id = preg_match('/^EMP[0-9]{3,17}$/iD', $employee_id)
+                        ? $employee_id
+                        : '';
+                    $image_path = $safe_session_employee_id !== '' ? "images/{$safe_session_employee_id}.jpg" : 'images/default.png';
 
                     if (!file_exists($image_path)) {
 
@@ -376,7 +366,7 @@ LIMIT 5"
 
                     ?>
 
-                    <img src="<?php echo $image_path; ?>" class="profile-image">
+                    <img src="<?php echo $escape_html($image_path); ?>" class="profile-image" alt="Profile photo">
 
                     <h2>
                         Employee Profile
@@ -384,22 +374,22 @@ LIMIT 5"
 
                     <div class="profile-item">
                         <b>Employee ID :</b>
-                        <?php echo $_SESSION['employee_id']; ?>
+                        <?php echo $escape_html($employee_id); ?>
                     </div>
 
                     <div class="profile-item">
                         <b>Full Name :</b>
-                        <?php echo $user['full_name']; ?>
+                        <?php echo $escape_html($user['full_name']); ?>
                     </div>
 
                     <div class="profile-item">
                         <b>Phone :</b>
-                        <?php echo $user['phone']; ?>
+                        <?php echo $escape_html($user['phone']); ?>
                     </div>
 
                     <div class="profile-item">
                         <b>Email :</b>
-                        <?php echo $user['email']; ?>
+                        <?php echo $escape_html($user['email']); ?>
                     </div>
 
                     <div class="profile-item">
@@ -420,7 +410,7 @@ LIMIT 5"
     font-size:13px;
     ">
 
-                            <?php echo $user['status']; ?>
+                            <?php echo $escape_html($user['status']); ?>
 
                         </span>
 
@@ -428,7 +418,7 @@ LIMIT 5"
 
                     <div class="profile-item">
                         <b>Department :</b>
-                        <?php echo $user['department']; ?>
+                        <?php echo $escape_html($user['department']); ?>
                     </div>
 
                     <br>
@@ -444,12 +434,12 @@ LIMIT 5"
 
                     <div class="profile-item">
                         <b>Role :</b>
-                        <?php echo $user['role']; ?>
+                        <?php echo $escape_html($user['role']); ?>
                     </div>
 
                     <div class="profile-item">
                         <b>Designation :</b>
-                        <?php echo $user['designation']; ?>
+                        <?php echo $escape_html($user['designation']); ?>
                     </div>
 
                 </div>
