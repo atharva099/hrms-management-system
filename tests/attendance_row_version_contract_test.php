@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../includes/attendance_time.php';
+require_once __DIR__ . '/attendance_row_version_test_config.php';
 
 $assert = static function ($condition, $message) {
     if (!$condition) {
@@ -15,6 +16,14 @@ $assert(attendance_row_version_value(['row_version' => '0']) === false, 'zero ve
 $assert(attendance_row_version_value(['row_version' => '01']) === false, 'noncanonical version is rejected');
 $assert(attendance_row_version_value(['row_version' => '4294967295']) === 4294967295, 'unsigned INT maximum is accepted');
 $assert(attendance_row_version_value(['row_version' => '4294967296']) === false, 'unsigned INT overflow is rejected');
+$assert(attendance_row_version_disposable_database_is_allowed('coreaxis_r5_attendance_row_version_test_20261013_ab12cd34'), 'unique R5 disposable target name is accepted');
+foreach (attendance_row_version_protected_databases() as $protected_database) {
+    $assert(!attendance_row_version_disposable_database_is_allowed($protected_database), 'protected database is rejected: ' . $protected_database);
+}
+$assert(!attendance_row_version_disposable_database_is_allowed('coreaxis_crm'), 'production target is rejected');
+$assert(!attendance_row_version_disposable_database_is_allowed('coreaxis_crm_runtime_test'), 'shared runtime clone is rejected');
+$assert(!attendance_row_version_disposable_database_is_allowed('coreaxis_r5_test'), 'database outside dedicated attendance namespace is rejected');
+$assert(!attendance_row_version_disposable_database_is_allowed('coreaxis_r5_attendance_bad-name'), 'invalid database identifier is rejected');
 
 $overnight = attendance_shift_schedule('2026-10-03', '22:00:00', '06:00:00');
 $assert(
@@ -159,15 +168,34 @@ echo "Database-free attendance row-version contract checks completed.\n";
 $integration_path = $root . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'attendance_row_version_integration.php';
 $integration_source = file_get_contents($integration_path);
 $assert($integration_source !== false, 'clone integration suite source can be read');
+$config_source = file_get_contents($root . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'attendance_row_version_test_config.php');
+$assert($config_source !== false, 'pure disposable-target guard helper is readable');
 foreach ([
-    "const TEST_DATABASE = 'coreaxis_crm_runtime_test'",
-    'const TEST_HOST = \'127.0.0.1\'',
+    "'coreaxis_crm'",
+    "'coreaxis_crm_runtime_test'",
+    "'coreaxis_crm_overnight_workflow_test'",
+    "'coreaxis_r5_overnight_forensic_baseline_20261011'",
+    "'coreaxis_r5_attendance_overnight_rerun_20261012_7f3a91c2'",
+    "'coreaxis_r5_attendance_overnight_rerun_20261013_a6d29f4c'"
+] as $protected_name) {
+    $assert(strpos($config_source, $protected_name) !== false, 'target helper explicitly blocks protected database: ' . $protected_name);
+}
+
+foreach ([
+    "getenv('COREAXIS_TEST_DISPOSABLE_DATABASE')",
+    'attendance_row_version_disposable_database_is_allowed($test_database)',
+    '$test_database)',
+    'attendance_row_version_disposable_database_is_allowed($test_database)',
+    '\'COREAXIS_TEST_TARGET_CONFIRMED\' => $test_database',
+    "'COREAXIS_TEST_BACKUP_VERIFIED' => 'YES'",
+    "'COREAXIS_TEST_ALLOW_WRITES' => 'YES'",
+    "const TEST_HOST = '127.0.0.1'",
+    "require_once __DIR__ . '/attendance_row_version_test_config.php'",
     'const TEST_PORT = 3307',
     '$db_user = getenv(\'COREAXIS_TEST_DB_USER\');',
     '$db_password = getenv(\'COREAXIS_TEST_DB_PASSWORD\');',
     'if (!is_string($db_user) || $db_user ===',
     'if ($db_password === false)',
-    "TEST_HOST !== '127.0.0.1' || TEST_PORT !== 3307 || TEST_DATABASE !== 'coreaxis_crm_runtime_test'",
     '$db_password = \'\';',
     "const FIXTURE_BUSINESS_DATE = '2098-10-03'",
     '$primary_transaction_open = false;',
@@ -182,9 +210,7 @@ foreach ([
     'attendance_shift_schedule($business_date, $shift[\'in_time\'], $shift[\'out_time\'])',
     '$fixture_users[$employee_id] = $id;',
     '$fixture_attendance_ids[] = $id;',
-    "'COREAXIS_TEST_BACKUP_VERIFIED' => 'YES'",
-    "'COREAXIS_TEST_ALLOW_WRITES' => 'YES'",
-    'new mysqli(TEST_HOST, $db_user, $db_password, TEST_DATABASE, TEST_PORT)',
+    'new mysqli(TEST_HOST, $db_user, $db_password, $test_database, TEST_PORT)',
     'pre-existing attendance/user rows and protected payroll/leave/audit tables match baseline',
     'recreate it from the verified backup to clean up',
     'final preservation verification could not complete',
@@ -193,11 +219,32 @@ foreach ([
     $assert(strpos($integration_source, $required_contract) !== false, 'integration suite includes safety contract: ' . $required_contract);
 }
 $assert(
-    preg_match('/\b(?:require|include)(?:_once)?\s*\(?[^;\r\n]*includes\/db\.php/i', $integration_source) !== 1,
+    preg_match('/\\b(?:require|include)(?:_once)?\\s*\\(?[^;\\r\\n]*includes\\/db\\.php/i', $integration_source) !== 1,
     'integration suite does not load workspace DB configuration'
 );
-$assert(strpos($integration_source, 'coreaxis_crm\'') === false, 'integration suite does not name the production database');
+$assert(
+    preg_match('/\\b(?:exec|shell_exec|system|passthru|proc_open|popen)\\s*\\(/i', $integration_source) !== 1,
+    'integration runner does not launch external commands'
+);
+$assert(strpos($config_source, "'coreaxis_crm'") !== false, 'integration suite explicitly refuses the production database');
 $assert(strpos($integration_source, 'DELETE FROM') === false, 'integration suite never deletes database rows');
+$assert(
+    strpos($integration_source, 'COREAXIS_TEST_DISPOSABLE_DATABASE') !== false
+        && strpos($integration_source, 'COREAXIS_TEST_TARGET_CONFIRMED') !== false,
+    'integration suite requires an explicit disposable target and matching operator confirmation'
+);
+$target_guard_position = strpos($integration_source, "\$test_database = getenv('COREAXIS_TEST_DISPOSABLE_DATABASE')");
+$gate_position = strpos($integration_source, '$required_gates = [');
+$connection_position = strpos($integration_source, 'new mysqli(TEST_HOST');
+$assert(
+    $target_guard_position !== false && $gate_position > $target_guard_position
+        && $connection_position > $gate_position,
+    'target validation and all operator gates run before database connection'
+);
+$assert(
+    preg_match('/\\b(?:require|include)(?:_once)?\\s*\\(?[^;\\r\\n]*attendance_row_version_integration\\.php/i', file_get_contents(__FILE__)) !== 1,
+    'database-free contract reads runner text without loading or executing it'
+);
 $finally_position = strpos($integration_source, '} finally {');
 $primary_rollback_position = strpos($integration_source, 'rollbackOutstandingOrFail($connection, $primary_transaction_open');
 $secondary_rollback_position = strpos($integration_source, 'rollbackOutstandingOrFail($second_connection, $secondary_transaction_open');
@@ -212,7 +259,7 @@ $assert(substr_count($integration_source, 'mysqli_begin_transaction(') === 1, 'a
 $assert(substr_count($integration_source, 'mysqli_commit(') === 1, 'all commits use tracked helper');
 $assert(substr_count($integration_source, 'mysqli_rollback(') === 1, 'all rollbacks use tracked helper');
 $assert(
-    preg_match('/\b(?:require|include)(?:_once)?\s*\(?[^;\r\n]*includes\/db\.php/i', $integration_source) !== 1,
+    preg_match('/\\b(?:require|include)(?:_once)?\\s*\\(?[^;\\r\\n]*includes\\/db\\.php/i', $integration_source) !== 1,
     'runner does not depend on production includes/db.php'
 );
 $assert(strpos($integration_source, "' 09:00:00'") === false && strpos($integration_source, "' 22:00:00'") === false, 'fixture timestamps are derived from active shift definitions');
