@@ -5,23 +5,62 @@ require_once 'includes/auth.php';
 
 $current_employee_id = auth_require_authenticated($conn);
 
-if (auth_current_role() === 'Admin') {
-    $id = isset($_GET['id']) && is_string($_GET['id'])
-        ? trim($_GET['id'])
-        : '';
+function employee_profile_escape($value)
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+$is_admin = auth_current_role() === 'Admin';
+$requested_id = isset($_GET['id']) && is_string($_GET['id'])
+    ? trim($_GET['id'])
+    : '';
+
+if ($is_admin) {
+    $id = $requested_id;
 } else {
+    // Employee users may view only their own profile, even when an id is supplied.
+    if (
+        $requested_id !== ''
+        && strcasecmp($requested_id, $current_employee_id) !== 0
+    ) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+
     $id = $current_employee_id;
 }
 
-$query =
-    "SELECT * FROM users
-WHERE employee_id='$id'";
+if (
+    !is_string($id)
+    || strlen($id) > 20
+    || !preg_match('/^EMP([0-9]{3,17})$/iD', $id, $employee_id_match)
+    || ltrim($employee_id_match[1], '0') === ''
+) {
+    http_response_code(400);
+    exit('Invalid employee ID');
+}
 
-$result =
-    mysqli_query($conn, $query);
+$statement = mysqli_prepare($conn, 'SELECT * FROM users WHERE employee_id = ? LIMIT 1');
+if ($statement === false) {
+    http_response_code(500);
+    exit('Unable to load employee profile');
+}
 
-$user =
-    mysqli_fetch_assoc($result);
+mysqli_stmt_bind_param($statement, 's', $id);
+if (!mysqli_stmt_execute($statement)) {
+    mysqli_stmt_close($statement);
+    http_response_code(500);
+    exit('Unable to load employee profile');
+}
+
+$result = mysqli_stmt_get_result($statement);
+$user = $result ? mysqli_fetch_assoc($result) : null;
+mysqli_stmt_close($statement);
+
+if (!$user) {
+    http_response_code(404);
+    exit('Employee profile not found');
+}
 
 ?>
 
@@ -88,7 +127,7 @@ $user =
 
         ?>
 
-        <img src="<?php echo $image; ?>">
+        <img src="<?php echo employee_profile_escape($image); ?>" alt="Employee profile photo">
 
         <h1>
             Employee Profile
@@ -98,7 +137,7 @@ $user =
 
             <b>Employee ID :</b>
 
-            <?php echo $user['employee_id']; ?>
+            <?php echo employee_profile_escape($user['employee_id']); ?>
 
         </div>
 
@@ -106,7 +145,7 @@ $user =
 
             <b>Name :</b>
 
-            <?php echo $user['full_name']; ?>
+            <?php echo employee_profile_escape($user['full_name']); ?>
 
         </div>
 
@@ -114,7 +153,7 @@ $user =
 
             <b>Department :</b>
 
-            <?php echo $user['department']; ?>
+            <?php echo employee_profile_escape($user['department']); ?>
 
         </div>
 
@@ -122,7 +161,7 @@ $user =
 
             <b>Designation :</b>
 
-            <?php echo $user['designation']; ?>
+            <?php echo employee_profile_escape($user['designation']); ?>
 
         </div>
 
@@ -142,7 +181,7 @@ if ($user['role'] == 'Admin') {
 font-weight:bold;
 ">
 
-                <?php echo $user['role']; ?>
+                <?php echo employee_profile_escape($user['role']); ?>
 
             </span>
 
@@ -153,7 +192,7 @@ font-weight:bold;
 
             <b>Phone :</b>
 
-            <?php echo $user['phone']; ?>
+            <?php echo employee_profile_escape($user['phone']); ?>
 
         </div>
 
@@ -161,7 +200,7 @@ font-weight:bold;
 
             <b>Email :</b>
 
-            <?php echo $user['email']; ?>
+            <?php echo employee_profile_escape($user['email']); ?>
 
         </div>
 
@@ -170,7 +209,7 @@ font-weight:bold;
             <b>Salary :</b>
 
             ₹
-            <?php echo $user['salary']; ?>
+            <?php echo employee_profile_escape($user['salary']); ?>
 
         </div>
 
@@ -178,7 +217,7 @@ font-weight:bold;
 
             <b>Shift Time :</b>
 
-            <?php echo $user['shift_time']; ?>
+            <?php echo employee_profile_escape($user['shift_time']); ?>
 
         </div>
 
@@ -186,7 +225,7 @@ font-weight:bold;
 
             <b>Joining Date :</b>
 
-            <?php echo $user['joining_date']; ?>
+            <?php echo employee_profile_escape($user['joining_date']); ?>
 
         </div>
         <div class="profile-item">
@@ -208,7 +247,7 @@ color:white;
 font-size:14px;
 ">
 
-                <?php echo $user['status']; ?>
+                <?php echo employee_profile_escape($user['status']); ?>
 
             </span>
 

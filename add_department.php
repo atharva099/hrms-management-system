@@ -21,20 +21,31 @@ if (!isset($_POST['department_name']) || !is_string($_POST['department_name'])) 
 }
 
 $department_name = trim($_POST['department_name']);
-if ($department_name === '') {
+$valid_utf8 = preg_match('//u', $department_name) === 1;
+$department_character_count = $valid_utf8
+    ? preg_match_all('/./us', $department_name, $department_name_characters)
+    : false;
+if ($department_name === '' || $department_character_count === false || $department_character_count > 100) {
     http_response_code(400);
     exit('Invalid department name');
 }
 
-$check =
-    mysqli_query(
-        $conn,
-        "SELECT *
-FROM departments
-WHERE department_name='$department_name'"
-    );
+$check_statement = mysqli_prepare($conn, 'SELECT id FROM departments WHERE department_name = ? LIMIT 1');
+if ($check_statement === false) {
+    http_response_code(500);
+    exit('Department could not be checked.');
+}
+mysqli_stmt_bind_param($check_statement, 's', $department_name);
+if (!mysqli_stmt_execute($check_statement)) {
+    mysqli_stmt_close($check_statement);
+    http_response_code(500);
+    exit('Department could not be checked.');
+}
+$check_result = mysqli_stmt_get_result($check_statement);
+$department_exists = $check_result && mysqli_num_rows($check_result) > 0;
+mysqli_stmt_close($check_statement);
 
-if (mysqli_num_rows($check) > 0) {
+if ($department_exists) {
 
     $_SESSION['error'] =
         "Department already exists.";
@@ -47,13 +58,18 @@ if (mysqli_num_rows($check) > 0) {
 
 }
 
-mysqli_query(
-    $conn,
-    "INSERT INTO departments
-(department_name)
-VALUES
-('$department_name')"
-);
+$insert_statement = mysqli_prepare($conn, 'INSERT INTO departments (department_name) VALUES (?)');
+if ($insert_statement === false) {
+    http_response_code(500);
+    exit('Department could not be added.');
+}
+mysqli_stmt_bind_param($insert_statement, 's', $department_name);
+if (!mysqli_stmt_execute($insert_statement)) {
+    mysqli_stmt_close($insert_statement);
+    http_response_code(500);
+    exit('Department could not be added.');
+}
+mysqli_stmt_close($insert_statement);
 
 $_SESSION['success'] =
     "Department added successfully.";

@@ -5,6 +5,10 @@ require_once 'includes/auth.php';
 
 auth_require_admin($conn);
 
+$escape_html = static function ($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+};
+
 /* Total Departments */
 
 $total_department_query =
@@ -125,7 +129,7 @@ $result =
                 <div class="success-message">
 
                     <?php
-                    echo $_SESSION['success'];
+                    echo $escape_html($_SESSION['success']);
                     unset($_SESSION['success']);
                     ?>
 
@@ -142,7 +146,7 @@ $result =
                 <div class="error-message">
 
                     <?php
-                    echo $_SESSION['error'];
+                    echo $escape_html($_SESSION['error']);
                     unset($_SESSION['error']);
                     ?>
 
@@ -257,11 +261,11 @@ $result =
                             <tr>
 
                                 <td>
-                                    <?php echo $row['id']; ?>
+                                    <?php echo (int) $row['id']; ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $row['department_name']; ?>
+                                    <?php echo $escape_html($row['department_name']); ?>
                                 </td>
 
                                 <td>
@@ -280,7 +284,7 @@ $result =
 
                                 <td>
 
-                                    <a href="edit_department.php?id=<?php echo $row['id']; ?>">
+                                    <a href="edit_department.php?id=<?php echo (int) $row['id']; ?>">
                                         Edit
                                     </a>
 

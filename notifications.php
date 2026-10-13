@@ -3,19 +3,48 @@
 include 'includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 $user_id = auth_require_authenticated($conn);
+$user_role = auth_current_role();
 
-$user_query =
-    "SELECT * FROM users
-WHERE employee_id='$user_id'";
+if (isset($_POST['mark_notifications_read'])) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        header('Allow: POST', true, 405);
+        exit('Method Not Allowed');
+    }
 
-$user_result =
-    mysqli_query($conn, $user_query);
+    if (!csrf_validate_token($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
 
-$user =
-    mysqli_fetch_assoc($user_result);
+    if ($user_role !== 'Employee') {
+        http_response_code(403);
+        exit('Forbidden');
+    }
 
+    $mark_read_statement = mysqli_prepare(
+        $conn,
+        "UPDATE leaves
+         SET employee_notification_status = 'Read'
+         WHERE employee_id = ?
+           AND status IN ('Approved', 'Rejected')
+           AND employee_notification_status = 'Unread'"
+    );
+    if ($mark_read_statement === false) {
+        http_response_code(500);
+        exit('Notifications could not be updated.');
+    }
+    mysqli_stmt_bind_param($mark_read_statement, 's', $user_id);
+    if (!mysqli_stmt_execute($mark_read_statement)) {
+        mysqli_stmt_close($mark_read_statement);
+        http_response_code(500);
+        exit('Notifications could not be updated.');
+    }
+    mysqli_stmt_close($mark_read_statement);
+    header('Location: notifications.php?read=1');
+    exit();
+}
 
-if ($user['role'] == 'Admin') {
+if ($user_role === 'Admin') {
 
     $query = "
     SELECT * FROM leaves
@@ -25,22 +54,34 @@ if ($user['role'] == 'Admin') {
 
 } else {
 
-    $query = "
-    SELECT * FROM leaves
-    WHERE employee_id='$user_id'
-    AND
-    (
-        status='Approved'
-        OR
-        status='Rejected'
-    )
-    AND employee_notification_status='Unread'
-    ORDER BY applied_on DESC
-    ";
+    $query = mysqli_prepare(
+        $conn,
+        "SELECT * FROM leaves
+         WHERE employee_id = ?
+           AND status IN ('Approved', 'Rejected')
+           AND employee_notification_status = 'Unread'
+         ORDER BY applied_on DESC"
+    );
+    if ($query === false) {
+        http_response_code(500);
+        exit('Notifications could not be loaded.');
+    }
+    mysqli_stmt_bind_param($query, 's', $user_id);
+    if (!mysqli_stmt_execute($query)) {
+        mysqli_stmt_close($query);
+        http_response_code(500);
+        exit('Notifications could not be loaded.');
+    }
+    $result = mysqli_stmt_get_result($query);
+    mysqli_stmt_close($query);
 
 }
 
-$result = mysqli_query($conn, $query);
+if ($user_role === 'Admin') {
+    $result = mysqli_query($conn, $query);
+}
+$has_notifications = $result && mysqli_num_rows($result) > 0;
+$read_confirmation = isset($_GET['read']) && $_GET['read'] === '1';
 
 ?>
 
@@ -81,7 +122,7 @@ $result = mysqli_query($conn, $query);
 
                 <?php
 
-                if ($user['role'] == 'Admin') {
+                if ($user_role === 'Admin') {
                     echo "Pending Leave Requests";
                 } else {
                     echo "Leave Status Notifications";
@@ -93,7 +134,7 @@ $result = mysqli_query($conn, $query);
 
             <?php
 
-            if (mysqli_num_rows($result) > 0) {
+            if ($has_notifications) {
 
                 ?>
 
@@ -115,30 +156,30 @@ $result = mysqli_query($conn, $query);
                         <tr>
 
                             <td>
-                                <?php echo $row['employee_id']; ?>
+                                <?php echo htmlspecialchars((string) $row['employee_id'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
-                                <?php echo $row['leave_type']; ?>
+                                <?php echo htmlspecialchars((string) $row['leave_type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
-                                <?php echo $row['from_date']; ?>
+                                <?php echo htmlspecialchars((string) $row['from_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
-                                <?php echo $row['to_date']; ?>
+                                <?php echo htmlspecialchars((string) $row['to_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                             </td>
 
                             <td>
 
                                 <?php
 
-                                if ($row['status'] == 'Approved') {
+                                if ($row['status'] === 'Approved') {
 
                                     echo "<span class='status-active'>Approved</span>";
 
-                                } elseif ($row['status'] == 'Rejected') {
+                                } elseif ($row['status'] === 'Rejected') {
 
                                     echo "<span class='status-inactive'>Rejected</span>";
 
@@ -156,7 +197,7 @@ $result = mysqli_query($conn, $query);
 
                                 <?php
 
-                                if ($user['role'] == 'Admin') {
+                                if ($user_role === 'Admin') {
                                     ?>
 
                                     <a href="manage_leave.php" class="view-btn">
@@ -185,11 +226,11 @@ $result = mysqli_query($conn, $query);
 
                 </table>
 
-                <?php
+            <?php
 
             } else {
 
-                if ($user['role'] == 'Admin') {
+                if ($user_role === 'Admin') {
 
                     echo "<h3 style='color:red; text-align:center; margin-top:30px;'>
         No Pending Leave Requests
@@ -206,6 +247,17 @@ $result = mysqli_query($conn, $query);
             ?>
 
         </div>
+
+        <?php if ($read_confirmation && $user_role !== 'Admin') { ?>
+            <p role="status" style="text-align:center;">Notifications marked as read.</p>
+        <?php } ?>
+
+        <?php if ($user_role !== 'Admin' && $has_notifications) { ?>
+            <form method="POST" style="text-align:center; margin-top:20px;">
+                <?php echo csrf_field(); ?>
+                <button type="submit" name="mark_notifications_read" value="1">Mark notifications as read</button>
+            </form>
+        <?php } ?>
 
         <div style="text-align:center; margin-top:40px;">
 
@@ -225,18 +277,6 @@ $result = mysqli_query($conn, $query);
         </div>
 
         <?php
-
-        if ($user['role'] != 'Admin') {
-
-            $update_notification = "
-    UPDATE leaves
-    SET employee_notification_status='Read'
-    WHERE employee_id='$user_id'
-    AND employee_notification_status='Unread'
-    ";
-
-            mysqli_query($conn, $update_notification);
-        }
 
         ?>
 
