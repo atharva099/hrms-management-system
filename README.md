@@ -4,6 +4,26 @@ CoreAxis CRM is a server-rendered PHP HRMS for a college demonstration. Existing
 
 Salary generation and payment are intentionally disabled. Stage-only policy and preview pages require a separate payroll-stage configuration/schema and are not part of the standard college schema.
 
+## Project Screenshots
+
+### Login
+![CoreAxis CRM login page](docs/screenshots/login.png)
+
+### Dashboard
+![CoreAxis CRM dashboard](docs/screenshots/dashboard.png)
+
+### Employee Management
+![CoreAxis CRM employee management](docs/screenshots/employees.png)
+
+### Attendance
+![CoreAxis CRM attendance](docs/screenshots/attendance.png)
+
+### Leave Management
+![CoreAxis CRM leave management](docs/screenshots/leave-management.png)
+
+### Salary Report
+![CoreAxis CRM salary report](docs/screenshots/salary-report.png)
+
 ## Current verification — 2026-11-04
 
 - Portable database-free tests: **28/28 PASS**, including the Admin bootstrap contract test.
