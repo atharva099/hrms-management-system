@@ -4,6 +4,7 @@ include 'includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 $user_id = auth_require_authenticated($conn);
 $user_role = auth_current_role();
+$active_nav = 'notifications';
 
 if (isset($_POST['mark_notifications_read'])) {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
@@ -87,34 +88,28 @@ $read_confirmation = isset($_GET['read']) && $_GET['read'] === '1';
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
 
     <title>Notifications</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="css/style.css">
-
-    <style>
-        h2 {
-            margin-bottom: 25px;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/operations-pages.css?v=2">
 
 </head>
 
 <body class="crm-body">
 
-    <div class="main-content">
+    <div class="main-container">
+        <?php include __DIR__ . '/includes/navigation.php'; ?>
+        <main class="content operation-page notifications-page" id="main-content">
 
-        <div class="page-header">
-
-            <h1 class="page-title">
-
-                Notifications Center
-
-            </h1>
-
-        </div>
+        <header class="topbar">
+            <h1>Notifications Center</h1>
+            <a href="dashboard.php">Back to Dashboard</a>
+        </header>
 
         <div class="table-container">
 
@@ -138,6 +133,7 @@ $read_confirmation = isset($_GET['read']) && $_GET['read'] === '1';
 
                 ?>
 
+                <div class="operations-table-scroll" role="region" aria-label="Notifications" tabindex="0">
                 <table class="crm-table">
 
                     <tr>
@@ -225,6 +221,7 @@ $read_confirmation = isset($_GET['read']) && $_GET['read'] === '1';
                     ?>
 
                 </table>
+                </div>
 
             <?php
 
@@ -253,7 +250,7 @@ $read_confirmation = isset($_GET['read']) && $_GET['read'] === '1';
         <?php } ?>
 
         <?php if ($user_role !== 'Admin' && $has_notifications) { ?>
-            <form method="POST" style="text-align:center; margin-top:20px;">
+            <form method="POST" class="notification-read-form">
                 <?php echo csrf_field(); ?>
                 <button type="submit" name="mark_notifications_read" value="1">Mark notifications as read</button>
             </form>
@@ -280,6 +277,7 @@ $read_confirmation = isset($_GET['read']) && $_GET['read'] === '1';
 
         ?>
 
+        </main>
     </div>
 
 </body>

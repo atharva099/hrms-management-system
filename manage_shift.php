@@ -142,22 +142,28 @@ $escape_html = static function ($value) {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/shift.css?v=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <title>Manage Shift</title>
 </head>
 
 <body>
+<div class="main-container">
+<?php $active_nav = 'manage_shift'; include __DIR__ . '/includes/navigation.php'; ?>
+<main class="content shift-page"><header class="topbar"><h1>Shift Management</h1><a class="shift-back" href="dashboard.php">Back to Dashboard</a></header><section class="shift-card">
 
     <?php if ($error_message !== '') { ?>
-        <div role="alert" style="background:#f8d7da;color:#721c24;padding:10px;margin:10px;border-radius:5px;">
+        <div role="alert" class="shift-alert shift-error">
             <?php echo $escape_html($error_message); ?>
         </div>
     <?php } ?>
 
     <?php if ($success) { ?>
-        <div style="background:#d4edda;color:#155724;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-success" role="status">
             <?php
             if ($_GET['success'] === 'shift_added') {
                 echo 'Shift added successfully.';
@@ -171,53 +177,53 @@ $escape_html = static function ($value) {
     <?php } ?>
 
     <?php if ($error === 'database_error') { ?>
-        <div style="background:#f8d7da;color:#721c24;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-error" role="alert">
             Database error occurred.
         </div>
     <?php } elseif ($error === 'shift_assigned') { ?>
-        <div style="background:#f8d7da;color:#721c24;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-error" role="alert">
             Cannot delete shift. Employees are assigned to this shift.
         </div>
     <?php } elseif ($error === 'update_failed') { ?>
-        <div style="background:#f8d7da;color:#721c24;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-error" role="alert">
             Shift update failed.
         </div>
     <?php } ?>
 
     <h2>Add Shift</h2>
 
-    <form method="POST">
+    <form method="POST" class="shift-form">
         <?php echo csrf_field(); ?>
 
-        Shift Name:
-        <input type="text" name="shift_name" maxlength="100" required>
+        <label for="shift_name">Shift name</label>
+        <input type="text" id="shift_name" name="shift_name" maxlength="100" required>
 
-        <br><br>
 
-        In Time:
-        <input type="time" name="in_time" required>
 
-        <br><br>
+        <label for="in_time">In time</label>
+        <input type="time" id="in_time" name="in_time" required>
 
-        Out Time:
-        <input type="time" name="out_time" required>
 
-        <br><br>
 
-        Late After:
-        <input type="time" name="late_after" required>
+        <label for="out_time">Out time</label>
+        <input type="time" id="out_time" name="out_time" required>
 
-        <br><br>
+
+
+        <label for="late_after">Late after</label>
+        <input type="time" id="late_after" name="late_after" required>
+
+
 
         <input type="submit" name="submit" value="Add Shift">
 
     </form>
 
-    <br><br>
 
-    <h2>Shift List</h2>
 
-    <table border="1" cellpadding="10">
+    </section><section class="shift-card"><h2>Shift List</h2>
+
+    <div class="shift-table-wrap" role="region" aria-label="Shift list" tabindex="0"><table class="shift-table">
         <tr>
             <th>ID</th>
             <th>Shift Name</th>
@@ -247,8 +253,8 @@ $escape_html = static function ($value) {
                 </td>
             </tr>
         <?php } ?>
-    </table>
+    </table></div>
 
-</body>
+</section></main></div></body>
 
 </html>

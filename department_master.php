@@ -57,9 +57,11 @@ $result =
 
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>Department Master</title>
 
@@ -67,6 +69,7 @@ $result =
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
+<link rel="stylesheet" href="css/admin-pages.css?v=2">
 </head>
 
 <body>
@@ -75,50 +78,11 @@ $result =
 
         <!-- SIDEBAR -->
 
-        <div class="sidebar">
-
-            <h2>CoreAxis CRM</h2>
-
-            <a href="dashboard.php">
-                <i class="fa-solid fa-chart-line"></i>
-                Dashboard
-            </a>
-
-            <a href="attendance.php">
-                <i class="fa-solid fa-calendar-check"></i>
-                Attendance
-            </a>
-
-            <a href="employees.php">
-                <i class="fa-solid fa-users"></i>
-                Employees
-            </a>
-
-            <a href="department_master.php" class="active">
-                <i class="fa-solid fa-building"></i>
-                Department Master
-            </a>
-
-            <a href="attendance_report.php">
-                <i class="fa-solid fa-chart-column"></i>
-                Attendance Report
-            </a>
-
-            <a href="salary_report.php">
-                <i class="fa-solid fa-money-bill-wave"></i>
-                Salary Report
-            </a>
-
-            <a href="logout.php">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                Logout
-            </a>
-
-        </div>
+        <?php $active_nav = 'departments'; include __DIR__ . '/includes/navigation.php'; ?>
 
         <!-- CONTENT -->
 
-        <div class="content">
+        <div class="content admin-page" id="main-content">
 
             <?php
 
@@ -158,7 +122,7 @@ $result =
 
             ?>
 
-            <div class="topbar">
+            <div class="topbar"><a class="admin-dashboard-link" href="dashboard.php">Back to Dashboard</a>
 
                 <h2>Department Master</h2>
 
@@ -283,32 +247,30 @@ $result =
                                 </td>
 
                                 <td>
-
-                                    <a href="edit_department.php?id=<?php echo (int) $row['id']; ?>">
+                                    <div class="department-actions">
+                                    <a class="department-action-link" href="edit_department.php?id=<?php echo (int) $row['id']; ?>">
                                         Edit
                                     </a>
 
-                                    |
-
                                     <?php if ($row['status'] == 'Active') { ?>
 
-                                        <form method="POST" action="deactivate_department.php" style="display:inline;"
+                                        <form class="department-action-form" method="POST" action="deactivate_department.php"
                                             onsubmit="return confirm('Deactivate this department?');">
                                             <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
                                             <?php echo csrf_field(); ?>
-                                            <button type="submit">Deactivate</button>
+                                            <button class="department-action-button" type="submit">Deactivate</button>
                                         </form>
 
                                     <?php } else { ?>
 
-                                        <form method="POST" action="activate_department.php" style="display:inline;">
+                                        <form class="department-action-form" method="POST" action="activate_department.php">
                                             <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
                                             <?php echo csrf_field(); ?>
-                                            <button type="submit">Activate</button>
+                                            <button class="department-action-button" type="submit">Activate</button>
                                         </form>
 
                                     <?php } ?>
-
+                                    </div>
                                 </td>
 
                             </tr>

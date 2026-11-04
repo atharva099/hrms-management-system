@@ -62,7 +62,7 @@ if ($request_method === 'POST') {
             http_response_code(400);
             $message = 'Please enter a valid name, phone number, and email address.';
             $message_is_error = true;
-        } elseif ($password_change_requested && !profile_validate_new_password($new_password)) {
+        } elseif ($password_change_requested && !coreaxis_password_is_valid($new_password)) {
             http_response_code(400);
             $message = 'A new password must be between 12 and 72 bytes.';
             $message_is_error = true;
@@ -244,19 +244,13 @@ if ($owned_image !== '' && is_file($owned_image) && !is_link($owned_image)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Edit Profile</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f1f2f6; }
-        .container { width: min(450px, calc(100% - 40px)); background: white; margin: 50px auto; padding: 35px; border-radius: 10px; }
-        input { box-sizing: border-box; width: 100%; padding: 12px; margin-top: 8px; }
-        button { width: 100%; padding: 12px; margin-top: 20px; background: #0d6efd; color: white; border: 0; cursor: pointer; }
-        label { display: block; margin: 15px 0 8px; font-weight: bold; color: #333; }
-        .message { padding: 10px; color: #14532d; }
-        .error { color: #991b1b; }
-        .profile-image { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #0d6efd; }
-    </style>
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/employee-forms.css?v=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
-<main class="container">
+<body><div class="main-container">
+<?php $active_nav = 'profile'; include __DIR__ . '/includes/navigation.php'; ?>
+<main class="content employee-form-page"><header class="topbar"><h1>Edit Profile</h1><a href="dashboard.php">Back to Dashboard</a></header>
+<section class="employee-form-card">
     <h2>Edit Profile</h2>
     <?php if ($message !== ''): ?>
         <p class="message<?php echo $message_is_error ? ' error' : ''; ?>" role="status"><?php echo profile_escape($message); ?></p>
@@ -293,6 +287,6 @@ if ($owned_image !== '' && is_file($owned_image) && !is_link($owned_image)) {
         <input type="hidden" name="action" value="delete_image">
         <button type="submit" style="background: #dc3545;">Delete Profile Picture</button>
     </form>
-</main>
-</body>
+</section>
+</main></div></body>
 </html>

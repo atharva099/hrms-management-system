@@ -1102,6 +1102,7 @@ table td {
 .app-sidebar {
     display: flex;
     flex-direction: column;
+    flex: 0 0 260px;
 }
 
 .app-sidebar .nav-brand {
@@ -1159,8 +1160,10 @@ table td {
 
 .content {
     flex: 1;
+    min-width: 0;
     padding: 35px;
-    width: 100%;
+    width: auto;
+    box-sizing: border-box;
 }
 
 body {
@@ -1490,8 +1493,14 @@ body {
     }
 
     .sidebar {
+        position: static;
+        top: auto;
+        height: auto;
+        max-height: none;
+        overflow: visible;
         width: 100%;
         min-height: auto;
+        flex-basis: auto;
     }
 
     .stats-box {
@@ -1942,4 +1951,318 @@ button:disabled {
     border-radius: 8px;
     margin-bottom: 15px;
     font-weight: 600;
+}
+
+
+/* Holiday management uses the shared application shell. */
+.holiday-page {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    min-width: 0;
+}
+
+.holiday-alert,
+.holiday-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.holiday-alert {
+    padding: 14px 18px;
+    font-weight: 600;
+}
+
+.holiday-alert-error {
+    color: #991b1b;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.holiday-alert-success {
+    color: #166534;
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.holiday-card {
+    padding: 22px;
+    min-width: 0;
+}
+
+.holiday-card h2 {
+    margin: 0 0 8px;
+    color: #0f172a;
+}
+
+.holiday-section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.holiday-section-heading p,
+.holiday-help {
+    margin: 6px 0 0;
+    color: #64748b;
+}
+
+.holiday-count {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-radius: 999px;
+    padding: 7px 12px;
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+
+.holiday-form,
+.holiday-edit-form {
+    display: grid;
+    grid-template-columns: minmax(130px, 1fr) minmax(150px, 0.7fr) auto;
+    align-items: end;
+    gap: 12px;
+}
+
+.holiday-form input,
+.holiday-edit-form input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 9px 11px;
+    color: #0f172a;
+    background: #fff;
+}
+
+.holiday-field {
+    display: grid;
+    gap: 6px;
+}
+
+.holiday-field label {
+    color: #334155;
+    font-weight: 600;
+}
+
+.holiday-form button { grid-column: 3; }
+
+.holiday-form button,
+.holiday-edit-form button {
+    min-height: 42px;
+    border: 0;
+    border-radius: 8px;
+    padding: 9px 16px;
+    color: #fff;
+    background: #2563eb;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.holiday-form button:hover,
+.holiday-edit-form button:hover { background: #1d4ed8; }
+
+.holiday-table-wrap { width: 100%; overflow-x: auto; }
+
+.holiday-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.holiday-table th,
+.holiday-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+}
+
+.holiday-table th {
+    color: #475569;
+    background: #f8fafc;
+    font-size: 0.86rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.holiday-table td[colspan="3"] { padding: 10px 0; }
+.holiday-empty { color: #64748b; text-align: center !important; }
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 760px) {
+    .holiday-page { padding: 14px; }
+    .holiday-card { padding: 16px; }
+    .holiday-form,
+    .holiday-edit-form { grid-template-columns: 1fr; }
+    .holiday-form button { grid-column: 1; }
+    .holiday-section-heading { flex-direction: column; }
+    .holiday-table { min-width: 440px; }
+}
+
+/* Keep the shared application shell usable on phone-sized viewports. */
+@media (max-width: 768px) {
+    .topbar {
+        height: auto;
+        min-height: 70px;
+        padding: 14px 16px;
+        box-sizing: border-box;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .topbar-left,
+    .topbar-right {
+        flex: 1 1 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .topbar-right {
+        justify-content: space-between;
+        margin-left: 0;
+    }
+
+    .search-box {
+        width: min(250px, 100%);
+        max-width: 100%;
+        flex: 1 1 170px;
+        box-sizing: border-box;
+    }
+
+    .main-content,
+    .content {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        overflow-x: auto;
+    }
+
+    .salary-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 20px auto;
+        padding: 0 16px;
+        box-sizing: border-box;
+    }
+
+    .salary-dashboard-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .salary-stat-card {
+        min-width: 0;
+        padding: 14px;
+    }
+
+    .salary-hero {
+        padding: 22px;
+    }
+
+    .salary-hero h1 {
+        font-size: clamp(28px, 8vw, 42px);
+    }
+
+    .salary-filters,
+    .back-btn-box {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .salary-filter-right {
+        width: 100%;
+        min-width: 0;
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+    }
+
+    .salary-search,
+    .salary-month-filter {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width: 600px) {
+    .salary-slip-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 16px auto;
+        box-sizing: border-box;
+    }
+
+    .salary-slip-card {
+        padding: 16px;
+        box-sizing: border-box;
+    }
+
+    .salary-slip-table td {
+        padding: 10px 8px;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* Keep the existing login design usable on phone-sized screens. */
+@media (max-width: 480px) {
+    .login-container {
+        min-height: 100vh;
+        height: auto;
+        padding: 16px;
+    }
+
+    .login-box {
+        width: 100%;
+        max-width: 420px;
+        padding: 24px;
+    }
+}
+
+.salary-slip-navigation {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 40px;
+}
+
+.salary-slip-navigation .back-btn {
+    margin: 0;
+}
+
+@media (max-width: 600px) {
+    .salary-slip-navigation {
+        margin: 16px;
+    }
+
+    .salary-slip-navigation .back-btn {
+        flex: 1 1 180px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+@media print {
+    .salary-slip-navigation {
+        display: none !important;
+    }
 }

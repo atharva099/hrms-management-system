@@ -158,147 +158,38 @@ $leave_message_json = json_encode(
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>Leave Management</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <style>
-        .main-container {
-            display: flex;
-        }
 
-        .sidebar {
-            width: 250px;
-            background: #007bff;
-            min-height: 100vh;
-            padding: 25px 20px;
-            box-sizing: border-box;
-        }
 
-        .sidebar a {
-            display: block;
-            color: white;
-            text-decoration: none;
-            padding: 12px;
-            margin-top: 10px;
-            border-radius: 8px;
-            transition: 0.3s;
-        }
-
-        .sidebar a:hover,
-        .sidebar .active {
-            background: white;
-            color: #007bff;
-        }
-
-        .content {
-            flex: 1;
-            padding: 40px;
-        }
-
-        form {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            width: 500px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        input,
-        select,
-        textarea {
-            width: 100%;
-            padding: 12px;
-            margin-top: 15px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            box-sizing: border-box;
-        }
-
-        button {
-            width: 100%;
-            padding: 14px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            margin-top: 20px;
-            font-size: 18px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #0056b3;
-        }
-    </style>
-
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/leave-pages.css?v=1">
 </head>
 
 <body>
 
     <div class="main-container">
 
-        <div class="sidebar">
+        <?php $active_nav = 'leave'; include __DIR__ . '/includes/navigation.php'; ?>
 
-            <h2 style="color:white;">
-                CoreAxis CRM
-            </h2>
+        <div class="content leave-page" id="main-content"><header class="topbar"><h1>Leave Application</h1><a href="dashboard.php">Back to Dashboard</a></header>
 
-            <a href="dashboard.php">
-                Dashboard
-            </a>
+            <section class="leave-card"><h2>Apply for leave</h2>
 
-            <a href="attendance.php">
-                Attendance
-            </a>
 
-            <a href="leave.php" class="active">
-                Leave Management
-            </a>
 
-            <a href="leave_history.php">
-                Leave History
-            </a>
-
-            <a href="holidays.php">
-                Holidays
-            </a>
-
-            <a href="salary.php">
-                Salary
-            </a>
-
-            <?php if ($user_role === 'Admin') { ?>
-
-                <a href="employees.php">
-                    Employees
-                </a>
-
-            <?php } ?>
-
-            <a href="logout.php">
-                Logout
-            </a>
-
-        </div>
-
-        <div class="content">
-
-            <div class="container">
-
-                <h1>
-                    Leave Management
-                </h1>
-
-                <form method="POST">
+                <form method="POST" class="leave-application-form">
 
                     <?php echo csrf_field(); ?>
 
-                    <select name="leave_type" required>
+                    <label for="leave_type">Leave type</label>
+<select id="leave_type" name="leave_type" required>
 
                         <option value="">
                             Select Leave Type
@@ -318,11 +209,14 @@ $leave_message_json = json_encode(
 
                     </select>
 
-                    <input type="date" name="from_date" required>
+                    <label for="from_date">From date</label>
+<input type="date" id="from_date" name="from_date" required>
 
-                    <input type="date" name="to_date" required>
+                    <label for="to_date">To date</label>
+<input type="date" id="to_date" name="to_date" required>
 
-                    <textarea name="reason" placeholder="Reason" required></textarea>
+                    <label for="reason">Reason</label>
+<textarea id="reason" name="reason" placeholder="Reason" required></textarea>
 
                     <button type="submit" name="apply_leave" value="1">
 
@@ -330,9 +224,7 @@ $leave_message_json = json_encode(
 
                     </button>
 
-                </form>
-
-            </div>
+                </form></section>
 
         </div>
 

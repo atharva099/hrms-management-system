@@ -8,6 +8,7 @@ date_default_timezone_set("Asia/Kolkata");
 
 include 'includes/db.php';
 $employee_id = auth_require_authenticated($conn);
+$active_nav = 'attendance';
 
 
 $application_now = new DateTimeImmutable('now', new DateTimeZone('Asia/Kolkata'));
@@ -109,27 +110,31 @@ if ($timestamp_schema_ready) {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 
     <title>Attendance</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/operations-pages.css?v=2">
 
 </head>
 
 <body>
 
-    <div class="main-content">
+    <div class="main-container">
+        <?php include __DIR__ . '/includes/navigation.php'; ?>
+        <main class="content operation-page attendance-page" id="main-content">
         <div class="attendance-wrapper">
 
 
-            <div class="page-header">
-                <h1 class="attendance-title">
-                    Attendance Records
-                </h1>
-            </div>
+            <header class="topbar">
+                <h1 class="attendance-title">Attendance Records</h1>
+                <a href="dashboard.php">Back to Dashboard</a>
+            </header>
 
             <?php if ($message !== '') { ?>
                 <p><?php echo htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></p>
@@ -267,6 +272,7 @@ if ($timestamp_schema_ready) {
             </div>
 
         </div>
+        </main>
     </div>
 
 </body>

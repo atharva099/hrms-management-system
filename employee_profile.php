@@ -66,54 +66,26 @@ if (!$user) {
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/employee-forms.css?v=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <title>
         Employee Profile
     </title>
 
-    <style>
-        body {
-            font-family: Arial;
-            background: #f4f6f9;
-            padding: 40px;
-        }
-
-        .profile-box {
-            background: white;
-            width: 550px;
-            margin: auto;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0px 5px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .profile-item {
-            margin-bottom: 15px;
-            font-size: 18px;
-        }
-
-        img {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-bottom: 20px;
-        }
-
-        .profile-box:hover {
-            transform: translateY(-5px);
-            transition: 0.3s;
-        }
-    </style>
+    <style>.employee-form-page .profile-item { margin: 18px 0; line-height: 1.7; overflow-wrap: anywhere; } .employee-form-page .profile-item b { display: block; color: #475569; } .employee-form-page .profile-return { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 24px; }</style>
 
 </head>
 
-<body>
+<body><div class="main-container">
+<?php $active_nav = $is_admin ? 'employees' : 'profile'; include __DIR__ . '/includes/navigation.php'; ?>
+<main class="content employee-form-page"><header class="topbar"><h1>Employee Profile</h1><a href="dashboard.php">Back to Dashboard</a></header>
 
-    <div class="profile-box">
+    <section class="employee-form-card">
 
         <?php
 
@@ -127,11 +99,9 @@ if (!$user) {
 
         ?>
 
-        <img src="<?php echo employee_profile_escape($image); ?>" alt="Employee profile photo">
+        <img class="profile-image" src="<?php echo employee_profile_escape($image); ?>" alt="Employee profile photo">
 
-        <h1>
-            Employee Profile
-        </h1>
+        <h2>Profile details</h2>
 
         <div class="profile-item">
 
@@ -253,28 +223,14 @@ font-size:14px;
 
         </div>
 
+    </section>
+
+    <div class="profile-return">
+        <?php if ($is_admin) { ?>
+            <a href="employees.php">Back to Employees</a>
+        <?php } ?>
+        <a href="dashboard.php">Back to Dashboard</a>
     </div>
-
-    <br><br>
-
-    <div style="text-align:center; margin-top:25px;">
-
-        <a href="employees.php" style="
-padding:12px 25px;
-background:#0d6efd;
-color:white;
-text-decoration:none;
-border-radius:8px;
-font-weight:bold;
-display:inline-block;
-">
-
-            Back To Employees
-
-        </a>
-
-    </div>
-
+</main></div>
 </body>
-
 </html>

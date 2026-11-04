@@ -1,0 +1,196 @@
+/* Shared layout adjustments for Attendance, Notifications and Salary pages. */
+.operation-page {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+.operation-page .topbar {
+    box-sizing: border-box;
+    min-height: 70px;
+    height: auto;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 14px 20px;
+}
+
+.operation-page .topbar h1 {
+    margin: 0;
+    color: #111827;
+    font-size: 26px;
+}
+
+.operation-page .topbar > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.operation-page .topbar > a:hover {
+    background: #1d4ed8;
+}
+
+.operation-page .operations-table-scroll {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+.operation-page .operations-table-scroll table {
+    min-width: 720px;
+}
+
+.attendance-page .attendance-wrapper {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+}
+
+.attendance-page .attendance-title {
+    text-align: left;
+    font-size: 26px;
+}
+
+.attendance-page .table-container {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.attendance-page .attendance-table {
+    min-width: 760px;
+}
+
+.notifications-page .table-container h2 {
+    margin-bottom: 25px;
+}
+
+.notifications-page .notification-read-form {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.notifications-page .notification-read-form button {
+    max-width: 100%;
+}
+
+.salary-page .salary-container {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1450px;
+    min-width: 0;
+    margin: 20px auto;
+    padding: 0 4px;
+}
+
+.salary-page .salary-dashboard-cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+}
+
+.salary-page .salary-stat-card {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.salary-page .salary-hero p {
+    margin: 0;
+}
+
+.salary-page .salary-filters {
+    flex-wrap: wrap;
+}
+
+.salary-page .salary-filter-right {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+}
+
+.salary-page .salary-search,
+.salary-page .salary-month-filter {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.salary-page .salary-table-scroll {
+    margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+    .main-container > .app-sidebar {
+        position: static;
+        top: auto;
+        height: auto;
+        max-height: none;
+        overflow: visible;
+        flex: 0 0 auto;
+    }
+
+    .operation-page {
+        padding: 16px;
+    }
+
+    .operation-page .topbar {
+        align-items: flex-start;
+        padding: 16px;
+    }
+
+    .attendance-page .attendance-wrapper {
+        display: flex;
+    }
+
+    .attendance-page .attendance-title {
+        font-size: 24px;
+    }
+
+    .attendance-page .table-container {
+        padding: 14px;
+    }
+
+    .salary-page .salary-container {
+        padding: 0;
+    }
+
+    .salary-page .salary-dashboard-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .salary-page .salary-hero {
+        padding: 20px;
+    }
+
+    .salary-page .salary-filter-right {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .salary-page .salary-search,
+    .salary-page .salary-month-filter {
+        width: 100%;
+    }
+}
+
+@media (max-width: 420px) {
+    .operation-page .topbar h1 {
+        font-size: 22px;
+    }
+
+    .salary-page .salary-dashboard-cards {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .salary-page .salary-stat-card h2 {
+        font-size: 30px;
+    }
+}

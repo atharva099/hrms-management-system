@@ -2,6 +2,7 @@
 
 include 'includes/db.php';
 require_once 'includes/auth.php';
+require_once __DIR__ . '/includes/password_policy.php';
 
 auth_require_admin($conn);
 
@@ -53,6 +54,7 @@ if ($request_method === 'POST') {
         $role = $read_text('role');
         $status = $read_text('status');
         $raw_shift_id = $read_text('shift_id');
+        $password_valid = coreaxis_password_is_valid($password_input);
 
         $valid = true;
         $lengths = [
@@ -74,9 +76,7 @@ if ($request_method === 'POST') {
         }
 
         if (
-            $password_input === null
-            || $password_input === ''
-            || strlen($password_input) > 72
+            !$password_valid
             || $joining_date === null
             || $email === null
             || filter_var($email, FILTER_VALIDATE_EMAIL) === false
@@ -127,7 +127,9 @@ if ($request_method === 'POST') {
 
         if (!$valid) {
             http_response_code(400);
-            $error_message = 'Please provide valid values for all employee fields.';
+            $error_message = $password_valid
+                ? 'Please provide valid values for all employee fields.'
+                : 'Password must be between 12 and 72 bytes.';
         } else {
             $employee_id = '';
             $id_query = mysqli_query(
@@ -229,38 +231,98 @@ if ($request_method === 'POST') {
                             http_response_code(500);
                             $error_message = 'Employee could not be created.';
                         } else {
-                            $insert = mysqli_prepare(
-                                $conn,
-                                'INSERT INTO users (employee_id, full_name, password, department, designation, shift_id, salary, joining_date, role, status, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-                            );
-
-                            if ($insert === false) {
-                                http_response_code(500);
-                                $error_message = 'Employee could not be created.';
-                            } else {
-                                mysqli_stmt_bind_param(
-                                    $insert,
-                                    'sssssissssss',
-                                    $employee_id,
-                                    $full_name,
-                                    $password_hash,
-                                    $department,
-                                    $designation,
-                                    $shift_id,
-                                    $salary,
-                                    $joining_date,
-                                    $role,
-                                    $status,
-                                    $phone,
-                                    $email
-                                );
-                                if (mysqli_stmt_execute($insert)) {
-                                    $success_message = 'Employee Added Successfully';
-                                } else {
+                            $shift_transaction_started = false;
+                            if ($shift_id !== null) {
+                                if (!mysqli_begin_transaction($conn)) {
                                     http_response_code(500);
                                     $error_message = 'Employee could not be created.';
+                                } else {
+                                    $shift_transaction_started = true;
+                                    // Keep the same shift-first lock used by
+                                    // assignment and deletion through the
+                                    // employee insert, preventing a selected
+                                    // shift from disappearing concurrently.
+                                    $shift_insert_lock = mysqli_prepare(
+                                        $conn,
+                                        'SELECT status FROM shifts WHERE id = ? LIMIT 1 FOR UPDATE'
+                                    );
+                                    if ($shift_insert_lock === false
+                                        || !mysqli_stmt_bind_param($shift_insert_lock, 'i', $shift_id)
+                                        || !mysqli_stmt_execute($shift_insert_lock)
+                                        || !mysqli_stmt_bind_result($shift_insert_lock, $locked_shift_status)) {
+                                        if ($shift_insert_lock instanceof mysqli_stmt) {
+                                            mysqli_stmt_close($shift_insert_lock);
+                                        }
+                                        mysqli_rollback($conn);
+                                        $shift_transaction_started = false;
+                                        http_response_code(500);
+                                        $error_message = 'Employee could not be created.';
+                                    } else {
+                                        $active_shift_found = mysqli_stmt_fetch($shift_insert_lock);
+                                        mysqli_stmt_close($shift_insert_lock);
+                                        if (!$active_shift_found || $locked_shift_status !== 'Active') {
+                                            mysqli_rollback($conn);
+                                            $shift_transaction_started = false;
+                                            http_response_code(400);
+                                            $error_message = 'Please select an active department and a valid shift.';
+                                        }
+                                    }
                                 }
-                                mysqli_stmt_close($insert);
+                            }
+
+                            if ($error_message !== '') {
+                                // A failed shift lock or revalidation must not
+                                // continue into the employee insert.
+                            } else {
+                                $insert = mysqli_prepare(
+                                    $conn,
+                                    'INSERT INTO users (employee_id, full_name, password, department, designation, shift_id, salary, joining_date, role, status, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                                );
+
+                                if ($insert === false) {
+                                    if ($shift_transaction_started) {
+                                        mysqli_rollback($conn);
+                                        $shift_transaction_started = false;
+                                    }
+                                    http_response_code(500);
+                                    $error_message = 'Employee could not be created.';
+                                } else {
+                                    $bound = mysqli_stmt_bind_param(
+                                        $insert,
+                                        'sssssissssss',
+                                        $employee_id,
+                                        $full_name,
+                                        $password_hash,
+                                        $department,
+                                        $designation,
+                                        $shift_id,
+                                        $salary,
+                                        $joining_date,
+                                        $role,
+                                        $status,
+                                        $phone,
+                                        $email
+                                    );
+                                    if ($bound && mysqli_stmt_execute($insert)) {
+                                        if ($shift_transaction_started && !mysqli_commit($conn)) {
+                                            mysqli_rollback($conn);
+                                            $shift_transaction_started = false;
+                                            http_response_code(500);
+                                            $error_message = 'Employee could not be created.';
+                                        } else {
+                                            $shift_transaction_started = false;
+                                            $success_message = 'Employee Added Successfully';
+                                        }
+                                    } else {
+                                        if ($shift_transaction_started) {
+                                            mysqli_rollback($conn);
+                                            $shift_transaction_started = false;
+                                        }
+                                        http_response_code(500);
+                                        $error_message = 'Employee could not be created.';
+                                    }
+                                    mysqli_stmt_close($insert);
+                                }
                             }
                         }
                     }
@@ -306,53 +368,63 @@ $escape_html = static function ($value) {
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 
        <title>Add Employee</title>
 
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/employee-forms.css?v=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
-<body>
+<body><div class="main-container">
+<?php $active_nav = 'add_employee'; include __DIR__ . '/includes/navigation.php'; ?>
+<main class="content employee-form-page"><header class="topbar"><h1>Add Employee</h1><a href="dashboard.php">Back to Dashboard</a></header>
 
-       <h2>Add Employee</h2>
+       <section class="employee-form-card"><h2>Employee details</h2>
 
        <?php if ($error_message !== '') { ?>
               <p role="alert"><?php echo $escape_html($error_message); ?></p>
        <?php } ?>
        <?php if ($success_message !== '') { ?>
-              <p><?php echo $escape_html($success_message); ?></p>
+              <p class="employee-success" role="status"><?php echo $escape_html($success_message); ?></p>
        <?php } ?>
 
        <form method="POST">
               <?php echo csrf_field(); ?>
 
-              <label>Employee ID</label>
+              <label for="employee_id_display">Employee ID</label>
 
-              <br>
 
-              <input type="text" value="<?php echo $escape_html($generated_employee_id); ?>" readonly>
 
-              <br><br>
+              <input id="employee_id_display" type="text" value="<?php echo $escape_html($generated_employee_id); ?>" readonly>
 
-              <input type="text" name="full_name" placeholder="Full Name" maxlength="100" required>
 
-              <input type="email" name="email" placeholder="Email Address" maxlength="100" required>
 
-              <br><br>
+              <label for="full_name">Full name</label>
+<input type="text" id="full_name" name="full_name" placeholder="Full Name" maxlength="100" required>
 
-              <input type="text" name="phone" placeholder="Phone Number" maxlength="15" required>
+              <label for="email">Email address</label>
+<input type="email" id="email" name="email" placeholder="Email Address" maxlength="100" required>
 
-              <br><br>
 
-              <br><br>
 
-              <input type="password" name="password" placeholder="Password" required>
+              <label for="phone">Phone number</label>
+<input type="text" id="phone" name="phone" placeholder="Phone Number" maxlength="15" required>
 
-              <br><br>
 
-              <select name="department" required>
+
+
+
+              <label for="password">Password</label>
+<input type="password" id="password" name="password" placeholder="Password" required>
+
+
+
+              <label for="department">Department</label>
+<select id="department" name="department" required>
 
                      <option value="">
                             Select Department
@@ -370,13 +442,15 @@ $escape_html = static function ($value) {
 
               </select>
 
-              <br><br>
 
-              <input type="text" name="designation" placeholder="Designation" maxlength="50" required>
 
-              <br><br>
+              <label for="designation">Designation</label>
+<input type="text" id="designation" name="designation" placeholder="Designation" maxlength="50" required>
 
-              <select name="shift_id">
+
+
+              <label for="shift_id">Shift (optional)</label>
+<select id="shift_id" name="shift_id">
 
                      <option value="">
                             Select Shift
@@ -394,17 +468,20 @@ $escape_html = static function ($value) {
 
               </select>
 
-              <br><br>
 
-              <input type="number" name="salary" placeholder="Salary" min="0" max="99999999.99" step="0.01" required>
 
-              <br><br>
+              <label for="salary">Salary</label>
+<input type="number" id="salary" name="salary" placeholder="Salary" min="0" max="99999999.99" step="0.01" required>
 
-              <input type="date" name="joining_date" required>
 
-              <br><br>
 
-              <select name="role" required>
+              <label for="joining_date">Joining date</label>
+<input type="date" id="joining_date" name="joining_date" required>
+
+
+
+              <label for="role">Role</label>
+<select id="role" name="role" required>
 
                      <option value="">Select Role</option>
 
@@ -414,9 +491,10 @@ $escape_html = static function ($value) {
 
               </select>
 
-              <br><br>
 
-              <select name="status" required>
+
+              <label for="status">Status</label>
+<select id="status" name="status" required>
 
                      <option value="">Select Status</option>
 
@@ -426,7 +504,7 @@ $escape_html = static function ($value) {
 
               </select>
 
-              <br><br>
+
 
               <button type="submit" name="add_employee">
 
@@ -436,12 +514,10 @@ $escape_html = static function ($value) {
 
        </form>
 
-       <br><br>
 
-       <a href="dashboard.php">
-              Back To Dashboard
-       </a>
 
-</body>
+
+
+</section></main></div></body>
 
 </html>

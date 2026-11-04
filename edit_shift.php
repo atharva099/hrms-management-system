@@ -177,47 +177,53 @@ $escape_html = static function ($value) {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/shift.css?v=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <title>Edit Shift</title>
 </head>
 
 <body>
+<div class="main-container">
+<?php $active_nav = 'manage_shift'; include __DIR__ . '/includes/navigation.php'; ?>
+<main class="content shift-page"><header class="topbar"><h1>Edit Shift</h1><a class="shift-back" href="dashboard.php">Back to Dashboard</a></header><section class="shift-card">
 
     <h2>Edit Shift</h2>
     <?php if ($error_message !== '') { ?>
         <p role="alert"><?php echo $escape_html($error_message); ?></p>
     <?php } ?>
 
-    <form method="POST">
+    <form method="POST" class="shift-form">
         <?php echo csrf_field(); ?>
-        <input type="hidden" name="shift_id" value="<?php echo $escape_html($row['id']); ?>">
+        <input type="hidden" id="shift_id" name="shift_id" value="<?php echo $escape_html($row['id']); ?>">
 
-        Shift Name:
-        <input type="text" name="shift_name" value="<?php echo $escape_html($row['shift_name']); ?>" maxlength="100" required>
+        <label for="shift_name">Shift name</label>
+        <input type="text" id="shift_name" name="shift_name" value="<?php echo $escape_html($row['shift_name']); ?>" maxlength="100" required>
 
-        <br><br>
 
-        In Time:
-        <input type="time" name="in_time" value="<?php echo $escape_html(substr((string) $row['in_time'], 0, 5)); ?>" required>
 
-        <br><br>
+        <label for="in_time">In time</label>
+        <input type="time" id="in_time" name="in_time" value="<?php echo $escape_html(substr((string) $row['in_time'], 0, 5)); ?>" required>
 
-        Out Time:
-        <input type="time" name="out_time" value="<?php echo $escape_html(substr((string) $row['out_time'], 0, 5)); ?>" required>
 
-        <br><br>
 
-        Late After:
-        <input type="time" name="late_after" value="<?php echo $escape_html(substr((string) $row['late_after'], 0, 5)); ?>" required>
+        <label for="out_time">Out time</label>
+        <input type="time" id="out_time" name="out_time" value="<?php echo $escape_html(substr((string) $row['out_time'], 0, 5)); ?>" required>
 
-        <br><br>
+
+
+        <label for="late_after">Late after</label>
+        <input type="time" id="late_after" name="late_after" value="<?php echo $escape_html(substr((string) $row['late_after'], 0, 5)); ?>" required>
+
+
 
         <input type="submit" name="update" value="Update Shift">
 
     </form>
 
-</body>
+</section></main></div></body>
 
 </html>

@@ -1,5 +1,31 @@
 <?php
 
+/** Normalize deprecated integer display widths without discarding signedness. */
+function attendance_normalize_column_type($type)
+{
+    $type = strtolower(trim((string) $type));
+    if (preg_match('/^(tinyint|smallint|mediumint|int|bigint)\(\d+\)(.*)$/D', $type, $matches) === 1) {
+        return $matches[1] . $matches[2];
+    }
+    return $type;
+}
+
+function attendance_column_type_matches($actual, $expected)
+{
+    return attendance_normalize_column_type($actual) === attendance_normalize_column_type($expected);
+}
+
+function attendance_row_version_column_matches($column)
+{
+    return is_array($column)
+        && isset($column['COLUMN_TYPE'], $column['IS_NULLABLE'])
+        && array_key_exists('COLUMN_DEFAULT', $column)
+        && array_key_exists('COLUMN_DEFAULT_IS_NULL', $column)
+        && attendance_column_type_matches($column['COLUMN_TYPE'], 'int unsigned')
+        && $column['IS_NULLABLE'] === 'NO'
+        && attendance_checkin_policy_default_matches($column['COLUMN_DEFAULT'], '1', $column['COLUMN_DEFAULT_IS_NULL']);
+}
+
 /** Return true only after the additive timestamp migration is present. */
 function attendance_has_datetime_columns($conn)
 {
@@ -36,11 +62,11 @@ function attendance_has_row_version_column($conn)
 
     $statement = mysqli_prepare(
         $conn,
-        "SELECT COUNT(*) FROM information_schema.COLUMNS
+        "SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT,
+                COLUMN_DEFAULT IS NULL AS COLUMN_DEFAULT_IS_NULL
+         FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance'
-           AND COLUMN_NAME = 'row_version'
-           AND DATA_TYPE = 'int' AND COLUMN_TYPE = 'int(10) unsigned'
-           AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT = '1'"
+           AND COLUMN_NAME = 'row_version'"
     );
     if (!$statement || !mysqli_stmt_execute($statement)) {
         if ($statement) {
@@ -48,10 +74,16 @@ function attendance_has_row_version_column($conn)
         }
         return $available = false;
     }
-    mysqli_stmt_bind_result($statement, $count);
-    mysqli_stmt_fetch($statement);
+    $result = mysqli_stmt_get_result($statement);
+    if (!$result) {
+        mysqli_stmt_close($statement);
+        return $available = false;
+    }
+    $column = mysqli_fetch_assoc($result) ?: null;
+    $has_extra_column = mysqli_fetch_assoc($result) !== null;
+    mysqli_free_result($result);
     mysqli_stmt_close($statement);
-    return $available = ((int) $count === 1);
+    return $available = ($column !== null && !$has_extra_column && attendance_row_version_column_matches($column));
 }
 
 /**
@@ -112,7 +144,7 @@ function attendance_checkin_policy_columns_match($columns, $query_succeeded = tr
         $column = $columns[$key];
         if (
             !isset($column['COLUMN_TYPE'], $column['IS_NULLABLE'])
-            || strtolower((string) $column['COLUMN_TYPE']) !== $type
+            || !attendance_column_type_matches($column['COLUMN_TYPE'], $type)
             || $column['IS_NULLABLE'] !== $nullable
             || !array_key_exists('COLUMN_DEFAULT', $column)
             || !array_key_exists('COLUMN_DEFAULT_IS_NULL', $column)
@@ -644,8 +676,8 @@ function attendance_find_current_open_checkout_candidates($conn, $employee_id, $
 function attendance_status_after_checkout($current_status, $total_seconds)
 {
     $total_hours = (int) floor($total_seconds / 3600);
-    if ($current_status === 'Sunday Working') {
-        return 'Sunday Working';
+    if ($current_status === 'Sunday Working' || $current_status === 'Holiday Working') {
+        return $current_status;
     }
     if ($total_hours < 4) {
         return 'Absent';

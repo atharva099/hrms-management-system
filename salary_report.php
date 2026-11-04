@@ -2,70 +2,50 @@
 
 include 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/payroll_presentation.php';
 
 auth_require_admin($conn);
 date_default_timezone_set('Asia/Kolkata');
-$escape_html = static function ($value) {
+
+$escape_report_html = function ($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 };
+
+$salary_periods_result = mysqli_query(
+    $conn,
+    "SELECT DISTINCT salary_period,
+            DATE_FORMAT(salary_period, '%M %Y') AS salary_period_label
+     FROM salaries
+     WHERE salary_period IS NOT NULL
+     ORDER BY salary_period DESC"
+);
 
 ?>
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+
     <title>Salary Report</title>
 
     <link rel="stylesheet" href="css/style.css">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="css/admin-pages.css?v=1">
 </head>
 
 <body>
 
     <div class="main-container">
 
-        <div class="sidebar">
+        <?php $active_nav = 'salary_report'; include __DIR__ . '/includes/navigation.php'; ?>
 
-            <h2>CoreAxis CRM</h2>
+        <div class="content admin-page" id="main-content">
 
-            <a href="dashboard.php">
-                <i class="fa-solid fa-chart-line"></i>
-                Dashboard
-            </a>
-
-            <a href="attendance.php">
-                <i class="fa-solid fa-calendar-check"></i>
-                Attendance
-            </a>
-
-            <a href="employees.php">
-                <i class="fa-solid fa-users"></i>
-                Employees
-            </a>
-
-            <a href="attendance_report.php">
-                <i class="fa-solid fa-chart-column"></i>
-                Attendance Report
-            </a>
-
-            <a href="salary_report.php" class="active">
-                <i class="fa-solid fa-money-bill-wave"></i>
-                Salary Report
-            </a>
-
-            <a href="logout.php">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                Logout
-            </a>
-
-        </div>
-
-        <div class="content">
-
-            <div class="topbar">
+            <div class="topbar"><a class="admin-dashboard-link" href="dashboard.php">Back to Dashboard</a>
 
                 <div class="topbar-left">
 
@@ -80,7 +60,7 @@ $escape_html = static function ($value) {
                     <div class="profile-box">
 
                         Welcome,
-                        <?php echo $escape_html($_SESSION['employee_id'] ?? ''); ?>
+                        <?php echo $escape_report_html($_SESSION['employee_id'] ?? ''); ?>
 
                     </div>
 
@@ -105,8 +85,12 @@ $escape_html = static function ($value) {
             <?php
 
             $total_salary_query =
-                "SELECT SUM(final_salary) AS total_salary
-FROM salaries";
+                "SELECT COALESCE(SUM(final_salary), 0) AS total_salary,
+                        COUNT(DISTINCT employee_id) AS total_employees,
+                        COALESCE(SUM(CASE WHEN payment_status='Paid' THEN final_salary ELSE 0 END), 0) AS paid_salary,
+                        COUNT(DISTINCT CASE WHEN payment_status='Paid' THEN employee_id END) AS paid_employees,
+                        COALESCE(SUM(CASE WHEN payment_status='Pending' THEN final_salary ELSE 0 END), 0) AS pending_salary
+                 FROM salaries";
 
             $total_salary_result =
                 mysqli_query($conn, $total_salary_query);
@@ -117,18 +101,11 @@ FROM salaries";
             $total_salary =
                 $total_salary_row['total_salary'];
 
-            $total_employee_query =
-                "SELECT COUNT(DISTINCT employee_id) AS total_employees
-FROM salaries";
-
-            $total_employee_result =
-                mysqli_query($conn, $total_employee_query);
-
-            $total_employee_row =
-                mysqli_fetch_assoc($total_employee_result);
-
-            $total_employees =
-                $total_employee_row['total_employees'];
+            $total_employee_row = $total_salary_row;
+            $total_employees = (int) ($total_employee_row['total_employees'] ?? 0);
+            $paid_employees = (int) ($total_employee_row['paid_employees'] ?? 0);
+            $paid_salary = $total_employee_row['paid_salary'] ?? '0.00';
+            $pending_salary = $total_employee_row['pending_salary'] ?? '0.00';
 
             $total_incentive_query =
                 "SELECT SUM(incentive)
@@ -151,14 +128,14 @@ FROM salaries";
 
             $total_deduction_query =
                 "SELECT
-SUM(
-late_deduction
-+
-halfday_deduction
-+
-absent_deduction
-)
-AS total_deduction
+COALESCE(
+    SUM(
+        COALESCE(late_deduction, 0)
+        + COALESCE(halfday_deduction, 0)
+        + COALESCE(absent_deduction, 0)
+    ),
+    0
+) AS total_deduction
 FROM salaries";
 
             $total_deduction_result =
@@ -195,12 +172,23 @@ FROM salaries";
 
                 <div class="card">
                     <span class="card-title">
-                        Total Employees
+                        Employees with Payroll Records
                     </span>
 
                     <div class="card-value">
                         <?php echo $total_employees; ?>
                     </div>
+                </div>
+
+                <div class="card">
+                    <span class="card-title">Paid Payroll</span>
+                    <div class="card-value">₹ <?php echo number_format($paid_salary, 2); ?></div>
+                    <small><?php echo $paid_employees; ?> employee(s) marked paid</small>
+                </div>
+
+                <div class="card">
+                    <span class="card-title">Pending Payroll</span>
+                    <div class="card-value">₹ <?php echo number_format($pending_salary, 2); ?></div>
                 </div>
 
                 <div class="card">
@@ -243,8 +231,11 @@ FROM salaries";
 
                     <select id="monthFilter" onchange="filterMonth()">
                         <option value="">All Months</option>
-                        <option value="April 2026">April 2026</option>
-                        <option value="May 2026">May 2026</option>
+                        <?php while ($salary_period = mysqli_fetch_assoc($salary_periods_result)) { ?>
+                            <?php $escaped_salary_period = $escape_report_html($salary_period['salary_period']); ?>
+                            <?php $escaped_salary_period_label = $escape_report_html($salary_period['salary_period_label']); ?>
+                            <option value="<?php echo $escaped_salary_period; ?>"><?php echo $escaped_salary_period_label; ?></option>
+                        <?php } ?>
                     </select>
 
                     <button type="button" onclick="window.print()" class="filter-btn">
@@ -271,7 +262,7 @@ FROM salaries";
 
                 <p>
                     Generated By :
-                    <?php echo $escape_html($_SESSION['employee_id'] ?? ''); ?>
+                    <?php echo $escape_report_html($_SESSION['employee_id'] ?? ''); ?>
                 </p>
 
                 <hr>
@@ -283,7 +274,7 @@ FROM salaries";
                 </p>
 
                 <p>
-                    <strong>Employees Paid :</strong>
+                    <strong>Employees with payroll records :</strong>
 
                     <?php echo $total_employees; ?>
                 </p>
@@ -294,7 +285,7 @@ FROM salaries";
 
             <div class="recent-table">
 
-                <table class="report-table">
+                <div class="admin-table-scroll" role="region" aria-label="Salary report" tabindex="0"><table class="report-table">
 
                     <thead>
 
@@ -308,6 +299,8 @@ FROM salaries";
                             <th>Half Day Deduction</th>
                             <th>Absent Deduction</th>
                             <th>Final Salary</th>
+                            <th>Payment Status</th>
+                            <th>Payment Date</th>
 
                         </tr>
 
@@ -317,23 +310,29 @@ FROM salaries";
 
                         <?php
 
-                        $query = "SELECT * FROM salaries
-ORDER BY id DESC";
+                        $query = "SELECT salaries.*,
+        DATE_FORMAT(salaries.salary_period, '%M %Y') AS salary_period_label
+FROM salaries
+ORDER BY salaries.id DESC";
 
                         $result = mysqli_query($conn, $query);
 
                         while ($row = mysqli_fetch_assoc($result)) {
+                            $payment_presentation = coreaxis_payroll_payment_presentation(
+                                $row['payment_status'] ?? null,
+                                $row['payment_date'] ?? null
+                            );
 
                             ?>
 
-                            <tr>
+                            <tr data-salary-period="<?php echo $escape_report_html($row['salary_period']); ?>">
 
                                 <td>
-                                    <?php echo $escape_html($row['employee_id']); ?>
+                                    <?php echo $escape_report_html($row['employee_id']); ?>
                                 </td>
 
                                 <td>
-                                    <?php echo $escape_html($row['salary_month']); ?>
+                                    <?php echo $escape_report_html($row['salary_period_label']); ?>
                                 </td>
 
                                 <td>
@@ -360,13 +359,16 @@ ORDER BY id DESC";
                                     <?php echo number_format($row['final_salary'], 2); ?>
                                 </td>
 
+                                <td><?php echo $escape_report_html($payment_presentation['status']); ?></td>
+                                <td><?php echo $escape_report_html($payment_presentation['date']); ?></td>
+
                             </tr>
 
                         <?php } ?>
 
                     </tbody>
 
-                </table>
+                </table></div>
 
             </div>
 
@@ -401,10 +403,9 @@ ORDER BY id DESC";
 
             function filterMonth() {
 
-                let selectedMonth =
+                let selectedPeriod =
                     document.getElementById("monthFilter")
-                        .value
-                        .toLowerCase();
+                        .value;
 
                 let rows =
                     document.querySelectorAll(
@@ -413,15 +414,12 @@ ORDER BY id DESC";
 
                 rows.forEach(function (row) {
 
-                    let month =
-                        row.cells[1]
-                            .innerText
-                            .toLowerCase();
+                    let period = row.dataset.salaryPeriod;
 
                     if (
-                        selectedMonth === ""
+                        selectedPeriod === ""
                         ||
-                        month === selectedMonth
+                        period === selectedPeriod
                     ) {
                         row.style.display = "";
                     }

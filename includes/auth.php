@@ -1,30 +1,73 @@
 <?php
 
-function auth_start_session()
+function auth_session_idle_expired($last_activity, $now, $timeout_seconds = 1800)
 {
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        return;
+    if (
+        !is_int($last_activity)
+        || !is_int($now)
+        || !is_int($timeout_seconds)
+        || $last_activity < 0
+        || $now < $last_activity
+        || $timeout_seconds < 1
+    ) {
+        return true;
     }
 
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
-        'httponly' => true,
-        'samesite' => 'Lax'
-    ]);
+    return ($now - $last_activity) > $timeout_seconds;
+}
 
-    session_start();
+function auth_start_session()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        // Reject attacker-supplied/uninitialized session IDs and prevent
+        // session identifiers from being accepted or propagated through URLs.
+        foreach ([
+            'session.use_strict_mode' => '1',
+            'session.use_only_cookies' => '1',
+            'session.use_trans_sid' => '0',
+        ] as $setting => $value) {
+            if (ini_set($setting, $value) === false) {
+                throw new RuntimeException('Secure session configuration is unavailable.');
+            }
+        }
+
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => '/',
+            'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+
+        session_start();
+    }
+
+    $now = time();
+    $has_authenticated_identity = isset($_SESSION['employee_id']) || isset($_SESSION['role']);
+    if (
+        $has_authenticated_identity
+        && auth_session_idle_expired($_SESSION['auth_last_activity_at'] ?? null, $now)
+    ) {
+        $_SESSION = [];
+        if (!session_regenerate_id(true)) {
+            throw new RuntimeException('Secure session renewal is unavailable.');
+        }
+    }
+    $_SESSION['auth_last_activity_at'] = $now;
 }
 
 function auth_login($employee_id, $role)
 {
     auth_start_session();
-    session_regenerate_id(true);
+    if (!session_regenerate_id(true)) {
+        return false;
+    }
     unset($_SESSION['csrf_token']);
 
     $_SESSION['employee_id'] = $employee_id;
     $_SESSION['role'] = $role;
+
+    return true;
 }
 
 function csrf_get_token()

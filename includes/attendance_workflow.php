@@ -52,6 +52,34 @@ function attendance_checkin_policy_message($decision)
     return '';
 }
 
+/** Classify work on the business date; holidays take precedence over Sunday. */
+function attendance_status_for_checkin($conn, $business_date, $checkin_at, $late_after)
+{
+    $statement = mysqli_prepare($conn, 'SELECT 1 FROM holidays WHERE holiday_date = ? LIMIT 1');
+    if (!$statement || !mysqli_stmt_bind_param($statement, 's', $business_date) || !mysqli_stmt_execute($statement)) {
+        if ($statement) {
+            mysqli_stmt_close($statement);
+        }
+        return null;
+    }
+    $result = mysqli_stmt_get_result($statement);
+    if (!$result) {
+        mysqli_stmt_close($statement);
+        return null;
+    }
+    $is_holiday = mysqli_num_rows($result) > 0;
+    mysqli_free_result($result);
+    mysqli_stmt_close($statement);
+
+    if ($is_holiday) {
+        return 'Holiday Working';
+    }
+    if ((new DateTimeImmutable($business_date, new DateTimeZone('Asia/Kolkata')))->format('l') === 'Sunday') {
+        return 'Sunday Working';
+    }
+    return attendance_is_late($business_date, $checkin_at, $late_after) ? 'Late' : 'Present';
+}
+
 /**
  * Execute an authenticated caller's check-in operation transactionally.
  * $now is an internal dependency; the HTTP layer must supply server time and
@@ -126,9 +154,10 @@ function attendance_workflow_checkin($conn, $employee_id, DateTimeImmutable $now
             throw new DomainException('You are already on approved leave for this shift date.');
         }
 
-        $status = (new DateTimeImmutable($business_date, new DateTimeZone('Asia/Kolkata')))->format('l') === 'Sunday'
-            ? 'Sunday Working'
-            : (attendance_is_late($business_date, $now_sql, (string) $shift['late_after']) ? 'Late' : 'Present');
+        $status = attendance_status_for_checkin($conn, $business_date, $now_sql, (string) $shift['late_after']);
+        if (!is_string($status)) {
+            throw new RuntimeException('attendance day classification failed');
+        }
         $scheduled_start = $schedule['start']->format('Y-m-d H:i:s');
         $scheduled_end = $schedule['end']->format('Y-m-d H:i:s');
         $late_after_at = $late_threshold->format('Y-m-d H:i:s');

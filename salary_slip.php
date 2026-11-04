@@ -2,8 +2,10 @@
 
 include 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/payroll_presentation.php';
 
 $current_employee_id = auth_require_authenticated($conn);
+$is_admin = auth_current_role() === 'Admin';
 $escape_html = static function ($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 };
@@ -16,7 +18,9 @@ if ($salary_id === false || $salary_id === null) {
     exit();
 }
 
-$query = 'SELECT salaries.*, users.full_name,
+$query = "SELECT salaries.*,
+DATE_FORMAT(salaries.salary_period, '%M %Y') AS salary_period_label,
+users.full_name,
 users.department,
 users.designation,
 users.email,
@@ -27,7 +31,7 @@ FROM salaries
 JOIN users
 ON salaries.employee_id = users.employee_id
 
-WHERE salaries.id = ?';
+WHERE salaries.id = ?";
 
 if (auth_current_role() === 'Admin') {
     $statement = mysqli_prepare($conn, $query);
@@ -47,15 +51,20 @@ if (!$row) {
     header('Location: salary.php');
     exit();
 }
+$payment_presentation = coreaxis_payroll_payment_presentation(
+    $row['payment_status'] ?? null,
+    $row['payment_date'] ?? null
+);
 
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 
     <title>Salary Slip</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="stylesheet" href="css/style.css?v=<?php echo time(); ?>">
 
@@ -63,16 +72,21 @@ if (!$row) {
 
 <body style="background:#f3f4f6;">
 
-    <a href="dashboard.php" class="back-btn">
-        ← Back to Dashboard
-    </a>
+    <nav class="salary-slip-navigation" aria-label="Salary slip navigation">
+        <a href="salary.php" class="back-btn">
+            ← Back to <?php echo $is_admin ? 'Salary Management' : 'My Salary'; ?>
+        </a>
+        <a href="dashboard.php" class="back-btn">
+            Dashboard
+        </a>
+    </nav>
 
     <div class="salary-slip-container">
         <div class="salary-slip-card">
 
             <div class="salary-slip-header">
 
-                <img src="images/logo.png.jpeg" class="company-logo">
+                <img src="images/logo.png" class="company-logo" alt="CoreAxis CRM logo">
 
                 <div>
 
@@ -110,7 +124,7 @@ if (!$row) {
 
                     ?>
 
-                    <img src="images/default.png" class="employee-profile-image">
+                    <img src="images/default.png" class="employee-profile-image" alt="Default employee photo">
 
                     <?php
 
@@ -178,10 +192,12 @@ if (!$row) {
                 </tr>
 
                 <tr>
+                    <td><strong>Payment Status</strong></td>
+                    <td><?php echo $escape_html($payment_presentation['status']); ?></td>
+                </tr>
+                <tr>
                     <td><strong>Payment Date</strong></td>
-                    <td>
-                        <?php echo date('d M Y'); ?>
-                    </td>
+                    <td><?php echo $escape_html($payment_presentation['date']); ?></td>
                 </tr>
 
                 <tr>
@@ -196,7 +212,7 @@ if (!$row) {
                 <tr>
                     <td><strong>Salary Month</strong></td>
                     <td>
-                        <?php echo $escape_html($row['salary_month']); ?>
+                        <?php echo $escape_html($row['salary_period_label']); ?>
                     </td>
                 </tr>
 

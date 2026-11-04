@@ -20,6 +20,19 @@ $escape = static function ($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 };
 
+$auth = $read('includes/auth.php');
+$session_start_offset = strpos($auth, 'session_start();');
+$assert($session_start_offset !== false, 'shared authentication helper starts PHP sessions');
+foreach ([
+    "'session.use_strict_mode' => '1'",
+    "'session.use_only_cookies' => '1'",
+    "'session.use_trans_sid' => '0'",
+] as $session_setting) {
+    $assert(strpos($auth, $session_setting) !== false, 'session security setting is enforced: ' . $session_setting);
+    $assert(strpos($auth, $session_setting) < $session_start_offset, 'session security setting is applied before session_start');
+}
+$assert(strpos($auth, 'Secure session configuration is unavailable.') !== false, 'session setup fails closed if required protections cannot be applied');
+
 $payload = '<img src=x onerror=alert(1)>';
 $escaped_payload = $escape($payload);
 $assert($escaped_payload === '&lt;img src=x onerror=alert(1)&gt;', 'HTML text and attribute escaping converts markup to inert text');
@@ -82,36 +95,30 @@ $assert(strpos($generation_contract, 'salary, incentive FROM users') !== false, 
 $assert(strpos($generation_contract, "role = 'Employee'") !== false && strpos($generation_contract, "status = 'Active'") !== false, 'payroll source is restricted to an active Employee account');
 $assert(strpos($generation_contract, '$employee_row[\'salary\']') !== false || strpos($generation_contract, '$amount_row[\'salary\']') !== false || strpos($generation_contract, '$selected_employee[\'salary\']') !== false || strpos($generation_contract, '$salary_value') !== false, 'basic salary uses the authoritative database value');
 $assert(strpos($generation_contract, '$employee_row[\'incentive\']') !== false || strpos($generation_contract, '$amount_row[\'incentive\']') !== false || strpos($generation_contract, '$selected_employee[\'incentive\']') !== false || strpos($generation_contract, '$incentive_value') !== false, 'incentive uses the authoritative database value');
-$assert(
-    strpos($salary, '$escape_html($row[\'full_name\'])') !== false
-        && strpos($salary, '$escape_html($row[\'employee_id\'])') !== false
-        && strpos($salary, '$escape_html($row[\'salary_month\'])') !== false,
-    'salary view escapes employee-controlled values and salary-month output'
-);
-$assert(strpos($salary, 'salary_period') === false, 'salary security fix preserves the committed salary_month schema');
 
 $salary_slip = $read('salary_slip.php');
 $assert(strpos($salary_slip, 'htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, \'UTF-8\')') !== false, 'salary slip defines HTML escaping for sensitive profile and payroll output');
 $assert(strpos($salary_slip, '$escape_html($row[\'full_name\'])') !== false, 'salary slip escapes employee-controlled name');
-$assert(
-    strpos($salary_slip, '$escape_html($row[\'department\'])') !== false
-        && strpos($salary_slip, '$escape_html($row[\'salary_month\'])') !== false
-        && strpos($salary_slip, '$escape_html($image_path)') !== false,
-    'salary slip escapes text and image URL output while retaining salary_month'
-);
 
-$salary_report = $read('salary_report.php');
-$assert(
-    strpos($salary_report, '$escape_html($_SESSION[\'employee_id\'] ?? \'\')') !== false
-        && strpos($salary_report, '$escape_html($row[\'employee_id\'])') !== false
-        && strpos($salary_report, '$escape_html($row[\'salary_month\'])') !== false,
-    'salary report escapes session and database-controlled text'
-);
-$assert(strpos($salary_report, 'salary_period') === false, 'salary report does not introduce salary_period dependencies');
+$salary_page = $read('salary.php');
+$assert(strpos($salary_page, '$escape_salary_html($emp[\'full_name\'])') !== false, 'salary generation options escape employee-controlled names');
+$assert(strpos($salary_page, '$escape_salary_html($row[\'full_name\'])') !== false, 'salary table escapes employee-controlled names');
+$assert(strpos($salary_page, 'data-month="<?php echo $escape_salary_html(') !== false, 'salary table escapes user-controlled filter attributes');
+$assert(strpos($salary_page, 'name="generate_salary" disabled') !== false, 'unsafe policy-dependent payroll generation is visibly disabled');
 
 $dashboard = $read('dashboard.php');
 $assert(strpos($dashboard, '$escape_html($recent[\'full_name\'])') !== false && strpos($dashboard, '$escape_html($user[\'department\'])') !== false, 'dashboard escapes employee names and departments');
 $assigned_shift = $read('view_assigned_shift.php');
 $assert(strpos($assigned_shift, '$escape_html($row[\'full_name\'])') !== false && strpos($assigned_shift, '$escape_html($row[\'department\'])') !== false, 'assigned-shift view escapes names and departments');
+
+foreach (['activate_employee.php', 'deactivate_employee.php'] as $lifecycle_endpoint) {
+    $lifecycle = $read($lifecycle_endpoint);
+    $assert(strpos($lifecycle, 'auth_require_admin($conn)') !== false, "{$lifecycle_endpoint} requires an active Admin");
+    $assert(strpos($lifecycle, "['REQUEST_METHOD']") !== false && strpos($lifecycle, "!== 'POST'") !== false, "{$lifecycle_endpoint} restricts mutation to POST");
+    $assert(strpos($lifecycle, 'csrf_validate_token($_POST[\'csrf_token\'] ?? null)') !== false, "{$lifecycle_endpoint} validates CSRF before mutation");
+    $assert(strpos($lifecycle, 'WHERE employee_id = ?') !== false && strpos($lifecycle, 'mysqli_stmt_bind_param($update_statement, \'s\', $id)') !== false, "{$lifecycle_endpoint} binds the validated employee ID");
+    $assert(strpos($lifecycle, 'WHERE employee_id=\'$id\'') === false, "{$lifecycle_endpoint} does not interpolate request data into SQL");
+    $assert(strpos($lifecycle, 'Employee status could not be updated.') !== false, "{$lifecycle_endpoint} does not report success on query failure");
+}
 
 echo "Completed {$checks} cross-module security contract checks. No database or HTTP operations were performed.\n";

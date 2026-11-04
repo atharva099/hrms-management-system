@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/password_policy.php';
+
 /**
  * Narrow, database-free validation helpers for the self-service profile page.
  */
@@ -62,9 +64,7 @@ function profile_validate_fields($full_name, $phone, $email)
 
 function profile_validate_new_password($password)
 {
-    return is_string($password)
-        && strlen($password) >= 12
-        && strlen($password) <= 72;
+    return coreaxis_password_is_valid($password);
 }
 
 /** Inspect actual file content; caller separately verifies HTTP upload provenance. */

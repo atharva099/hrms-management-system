@@ -37,75 +37,83 @@ if ($request_method === 'POST') {
         exit();
     }
 
-    $user_check = mysqli_prepare(
-        $conn,
-        "SELECT shift_id FROM users WHERE id = ? AND status = 'Active' LIMIT 1"
-    );
-    if ($user_check === false) {
+    if (!mysqli_begin_transaction($conn)) {
         header('Location: assign_shift.php?error=database_error');
-        exit();
-    }
-    mysqli_stmt_bind_param($user_check, 'i', $user_id);
-    if (!mysqli_stmt_execute($user_check)) {
-        mysqli_stmt_close($user_check);
-        header('Location: assign_shift.php?error=database_error');
-        exit();
-    }
-    $current_shift_id = null;
-    mysqli_stmt_bind_result($user_check, $current_shift_id);
-    $user_exists = mysqli_stmt_fetch($user_check);
-    mysqli_stmt_close($user_check);
-    if (!$user_exists) {
-        header('Location: assign_shift.php?error=invalid_input');
         exit();
     }
 
-    $shift_check = mysqli_prepare(
-        $conn,
-        "SELECT id FROM shifts WHERE id = ? AND status = 'Active' LIMIT 1"
-    );
-    if ($shift_check === false) {
-        header('Location: assign_shift.php?error=database_error');
-        exit();
-    }
-    mysqli_stmt_bind_param($shift_check, 'i', $shift_id);
-    if (!mysqli_stmt_execute($shift_check)) {
+    try {
+        // Shift mutations use shift-then-user lock order. The same shift-row
+        // lock is used by delete_shift.php so assignment cannot race deletion.
+        $shift_check = mysqli_prepare(
+            $conn,
+            'SELECT status FROM shifts WHERE id = ? LIMIT 1 FOR UPDATE'
+        );
+        if ($shift_check === false || !mysqli_stmt_bind_param($shift_check, 'i', $shift_id)
+            || !mysqli_stmt_execute($shift_check)
+            || !mysqli_stmt_bind_result($shift_check, $shift_status)) {
+            if ($shift_check instanceof mysqli_stmt) {
+                mysqli_stmt_close($shift_check);
+            }
+            throw new RuntimeException('Shift could not be locked.');
+        }
+        $shift_exists = mysqli_stmt_fetch($shift_check);
         mysqli_stmt_close($shift_check);
+        if (!$shift_exists || $shift_status !== 'Active') {
+            mysqli_rollback($conn);
+            header('Location: assign_shift.php?error=invalid_input');
+            exit();
+        }
+
+        $user_check = mysqli_prepare(
+            $conn,
+            'SELECT status, shift_id FROM users WHERE id = ? LIMIT 1 FOR UPDATE'
+        );
+        if ($user_check === false || !mysqli_stmt_bind_param($user_check, 'i', $user_id)
+            || !mysqli_stmt_execute($user_check)
+            || !mysqli_stmt_bind_result($user_check, $user_status, $current_shift_id)) {
+            if ($user_check instanceof mysqli_stmt) {
+                mysqli_stmt_close($user_check);
+            }
+            throw new RuntimeException('Employee could not be locked.');
+        }
+        $user_exists = mysqli_stmt_fetch($user_check);
+        mysqli_stmt_close($user_check);
+        if (!$user_exists || $user_status !== 'Active') {
+            mysqli_rollback($conn);
+            header('Location: assign_shift.php?error=invalid_input');
+            exit();
+        }
+
+        if ((int) $current_shift_id === $shift_id) {
+            mysqli_rollback($conn);
+            header('Location: assign_shift.php?error=already_assigned');
+            exit();
+        }
+
+        $update = mysqli_prepare(
+            $conn,
+            "UPDATE users SET shift_id = ? WHERE id = ? AND status = 'Active'"
+        );
+        if ($update === false || !mysqli_stmt_bind_param($update, 'ii', $shift_id, $user_id)
+            || !mysqli_stmt_execute($update) || mysqli_stmt_affected_rows($update) !== 1) {
+            if ($update instanceof mysqli_stmt) {
+                mysqli_stmt_close($update);
+            }
+            throw new RuntimeException('Shift assignment failed.');
+        }
+        mysqli_stmt_close($update);
+
+        if (!mysqli_commit($conn)) {
+            throw new RuntimeException('Shift assignment could not be committed.');
+        }
+    } catch (Throwable $error) {
+        mysqli_rollback($conn);
         header('Location: assign_shift.php?error=database_error');
         exit();
     }
-    mysqli_stmt_store_result($shift_check);
-    $shift_exists = mysqli_stmt_num_rows($shift_check) === 1;
-    mysqli_stmt_close($shift_check);
-    if (!$shift_exists) {
-        header('Location: assign_shift.php?error=invalid_input');
-        exit();
-    }
 
-    if ((int) $current_shift_id === $shift_id) {
-        header('Location: assign_shift.php?error=already_assigned');
-        exit();
-    }
-
-    $update = mysqli_prepare(
-        $conn,
-        "UPDATE users SET shift_id = ? WHERE id = ? AND status = 'Active'"
-    );
-    if ($update === false) {
-        header('Location: assign_shift.php?error=database_error');
-        exit();
-    }
-    mysqli_stmt_bind_param($update, 'ii', $shift_id, $user_id);
-    $updated = mysqli_stmt_execute($update);
-    $changed_rows = mysqli_stmt_affected_rows($update);
-    mysqli_stmt_close($update);
-
-    if ($updated && $changed_rows === 1) {
-        header('Location: assign_shift.php?success=assigned');
-        exit();
-    }
-
-    header('Location: assign_shift.php?error=database_error');
+    header('Location: assign_shift.php?success=assigned');
     exit();
 }
 
@@ -131,42 +139,48 @@ $escape_html = static function ($value) {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/shift.css?v=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <title>Assign Shift</title>
 </head>
 
 <body>
+<div class="main-container">
+<?php $active_nav = 'assign_shift'; include __DIR__ . '/includes/navigation.php'; ?>
+<main class="content shift-page"><header class="topbar"><h1>Assign Shift</h1><a class="shift-back" href="dashboard.php">Back to Dashboard</a></header><section class="shift-card">
 
     <?php if ($success) { ?>
-        <div style="background:#d4edda;color:#155724;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-success" role="status">
             Shift assigned successfully.
         </div>
     <?php } ?>
 
     <?php if ($error === 'already_assigned') { ?>
-        <div style="background:#f8d7da;color:#721c24;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-error" role="alert">
             Employee already has this shift assigned.
         </div>
     <?php } elseif ($error === 'database_error') { ?>
-        <div style="background:#f8d7da;color:#721c24;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-error" role="alert">
             Database error occurred.
         </div>
     <?php } elseif ($error === 'invalid_input') { ?>
-        <div style="background:#f8d7da;color:#721c24;padding:10px;margin:10px;border-radius:5px;">
+        <div class="shift-alert shift-error" role="alert">
             Select an active employee and shift.
         </div>
     <?php } ?>
 
     <h2>Assign Shift To Employee</h2>
 
-    <form method="POST">
+    <form method="POST" class="shift-form">
         <?php echo csrf_field(); ?>
 
-        Select Employee:
+        <label for="user_id">Employee</label>
 
-        <select name="user_id" required>
+        <select id="user_id" name="user_id" required>
             <option value="">Select Employee</option>
             <?php while ($user = mysqli_fetch_assoc($user_result)) { ?>
                 <option value="<?php echo $escape_html($user['id']); ?>">
@@ -175,11 +189,11 @@ $escape_html = static function ($value) {
             <?php } ?>
         </select>
 
-        <br><br>
 
-        Select Shift:
 
-        <select name="shift_id" required>
+        <label for="shift_id">Shift</label>
+
+        <select id="shift_id" name="shift_id" required>
             <option value="">Select Shift</option>
             <?php while ($shift = mysqli_fetch_assoc($shift_result)) { ?>
                 <option value="<?php echo $escape_html($shift['id']); ?>">
@@ -188,12 +202,12 @@ $escape_html = static function ($value) {
             <?php } ?>
         </select>
 
-        <br><br>
+
 
         <input type="submit" name="assign" value="Assign Shift">
 
     </form>
 
-</body>
+</section></main></div></body>
 
 </html>

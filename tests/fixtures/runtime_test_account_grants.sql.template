@@ -1,0 +1,5 @@
+-- Static contract fixture only. Every SQL example below is intentionally commented out.
+-- Not executable and not a provisioning recipe. Keep these placeholders unexpanded.
+-- CREATE USER '{{TEST_ACCOUNT}}'@'127.0.0.1' IDENTIFIED BY {{APP_PASSWORD_SQL_LITERAL}};
+-- GRANT SELECT, INSERT, UPDATE ON `{{TEST_DATABASE}}`.* TO '{{TEST_ACCOUNT}}'@'127.0.0.1';
+-- GRANT DELETE ON `{{TEST_DATABASE}}`.`shifts` TO '{{TEST_ACCOUNT}}'@'127.0.0.1';

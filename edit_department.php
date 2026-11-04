@@ -4,6 +4,7 @@ include 'includes/db.php';
 require_once 'includes/auth.php';
 
 auth_require_admin($conn);
+$active_nav = 'departments';
 
 $request_method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($request_method !== 'GET' && $request_method !== 'POST') {
@@ -135,45 +136,55 @@ unset($_SESSION['error']);
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 
     <title>Edit Department</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/admin-pages.css">
+    <link rel="stylesheet" href="css/employee-forms.css">
 
 </head>
 
 <body>
 
-    <div class="content">
-
-        <h2>Edit Department</h2>
+    <div class="main-container">
+        <?php include __DIR__ . '/includes/navigation.php'; ?>
+        <main class="content admin-page employee-form-page department-edit-page" id="main-content">
+        <header class="topbar">
+            <div class="topbar-left">
+                <h1>Edit Department</h1>
+            </div>
+            <div class="topbar-right">
+                <a class="admin-dashboard-link" href="department_master.php">Departments</a>
+                <a class="admin-dashboard-link" href="dashboard.php">Dashboard</a>
+            </div>
+        </header>
 
         <?php if ($error_message !== '') { ?>
-            <div class="error-message">
+            <div class="employee-form-card" role="alert">
                 <?php echo $escape_html($error_message); ?>
             </div>
         <?php } ?>
 
-        <form method="POST" action="edit_department.php">
-            <?php echo csrf_field(); ?>
-            <input type="hidden" name="department_id" value="<?php echo $escape_html($department['id']); ?>">
-            <input type="text" name="department_name" value="<?php echo $escape_html($department['department_name']); ?>" maxlength="100" required>
+        <section class="employee-form-card department-edit-card">
+            <h2>Department Details</h2>
+            <form method="POST" action="edit_department.php">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="department_id" value="<?php echo $escape_html($department['id']); ?>">
+                <label for="department_name">Department name</label>
+                <input type="text" id="department_name" name="department_name" value="<?php echo $escape_html($department['department_name']); ?>" maxlength="100" required>
 
-            <button type="submit">
-                Update Department
-            </button>
-
-        </form>
-
-        <br>
-
-        <a href="department_master.php">
-            Back
-        </a>
-
+                <button type="submit">
+                    Update Department
+                </button>
+            </form>
+        </section>
+        </main>
     </div>
 
 </body>

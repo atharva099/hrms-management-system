@@ -15,7 +15,7 @@ if ($requested_employee_id === '') {
 
 if (
     auth_current_role() !== 'Admin'
-    && !hash_equals($current_employee_id, $requested_employee_id)
+    && strcasecmp($current_employee_id, $requested_employee_id) !== 0
 ) {
     http_response_code(403);
     exit();

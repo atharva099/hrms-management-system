@@ -1,11 +1,15 @@
+<?php
+require_once __DIR__ . '/includes/auth.php';
+?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 
     <title>CoreAxis CRM Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="css/style.css?v=2">
+    <link rel="stylesheet" href="css/style.css?v=3">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
@@ -26,6 +30,8 @@
             </p>
 
             <form action="login.php" method="POST">
+
+                <?php echo csrf_field(); ?>
 
                 <input type="text" name="employee_id" id="employee_id" placeholder="Employee ID" required>
 

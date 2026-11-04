@@ -73,7 +73,8 @@ $allowed_statuses = [
     'Late',
     'Half Day',
     'Late Half Day',
-    'Sunday Working'
+    'Sunday Working',
+    'Holiday Working'
 ];
 if ($filter_status !== '' && !in_array($filter_status, $allowed_statuses, true)) {
     http_response_code(400);
@@ -97,103 +98,31 @@ if ($filter_from_date !== '' && $filter_to_date !== '' && $filter_from_date > $f
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>Attendance Report</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
 
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=college-20261025">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+<link rel="stylesheet" href="css/admin-pages.css?v=1">
 </head>
 
 <body>
 
     <div class="main-container">
 
-        <div class="sidebar">
+        <?php $active_nav = 'attendance_report'; include __DIR__ . '/includes/navigation.php'; ?>
 
-            <h2 style="color:white;">
-                CoreAxis CRM
-            </h2>
+        <div class="content admin-page" id="main-content">
 
-            <a href="dashboard.php">
-                <i class="fa-solid fa-house"></i>
-                Dashboard
-            </a>
-
-            <a href="attendance.php">
-                <i class="fa-solid fa-calendar-check"></i>
-                Attendance
-            </a>
-
-            <a href="holidays.php">
-                <i class="fa-solid fa-plane"></i>
-                Holidays
-            </a>
-
-            <a href="salary.php">
-                <i class="fa-solid fa-money-bill"></i>
-                Salary
-            </a>
-
-            <a href="employees.php">
-                <i class="fa-solid fa-users"></i>
-                Employees
-            </a>
-
-            <a href="add_employee.php">
-                <i class="fa-solid fa-user-plus"></i>
-                Add Employee
-            </a>
-
-            <a href="attendance_report.php" class="active">
-                <i class="fa-solid fa-chart-column"></i>
-                Attendance Report
-            </a>
-
-            <a href="salary_report.php">
-                <i class="fa-solid fa-file-invoice-dollar"></i>
-                Salary Report
-            </a>
-
-            <a href="manage_shift.php">
-                <i class="fa-solid fa-clock"></i>
-                Manage Shift
-            </a>
-
-            <a href="assign_shift.php">
-                <i class="fa-solid fa-user-clock"></i>
-                Assign Shift
-            </a>
-
-            <a href="view_assigned_shift.php">
-                <i class="fa-solid fa-eye"></i>
-                View Assigned Shift
-            </a>
-
-            <a href="manage_leave.php">
-                Manage Leave
-            </a>
-
-            <a href="edit_profile.php">
-                <i class="fa fa-user-edit"></i>
-                Edit Profile
-            </a>
-
-            <a href="logout.php">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                Logout
-            </a>
-
-        </div>
-
-        <div class="content">
-
-            <div class="topbar">
+            <div class="topbar"><a class="admin-dashboard-link" href="dashboard.php">Back to Dashboard</a>
 
                 <div class="topbar-left">
 
@@ -273,6 +202,13 @@ if ($filter_from_date !== '' && $filter_to_date !== '' && $filter_from_date > $f
     AND attendance_date='$today'"
             ));
 
+            $holiday_working_count = mysqli_num_rows(mysqli_query(
+                $conn,
+                "SELECT DISTINCT employee_id FROM attendance
+    WHERE status='Holiday Working'
+    AND attendance_date='$today'"
+            ));
+
             $half_day_count = mysqli_num_rows(mysqli_query(
                 $conn,
                 "SELECT DISTINCT employee_id FROM attendance
@@ -340,6 +276,13 @@ if ($filter_from_date !== '' && $filter_to_date !== '' && $filter_from_date > $f
                     </h3>
                 </div>
 
+                <div class="card">
+                    <h6>Holiday Working</h6>
+                    <h3 class="text-info">
+                        <?php echo $holiday_working_count; ?>
+                    </h3>
+                </div>
+
             </div>
 
             <div class="filter-box">
@@ -386,6 +329,11 @@ if ($filter_from_date !== '' && $filter_to_date !== '' && $filter_from_date > $f
                         <option value="Sunday Working" <?php if ($filter_status === 'Sunday Working')
                             echo 'selected'; ?>>
                             Sunday Working
+                        </option>
+
+                        <option value="Holiday Working" <?php if ($filter_status === 'Holiday Working')
+                            echo 'selected'; ?>>
+                            Holiday Working
                         </option>
 
                     </select>
@@ -549,6 +497,10 @@ if ($filter_from_date !== '' && $filter_to_date !== '' && $filter_from_date > $f
                                     } elseif ($status == 'Sunday Working') {
 
                                         echo "<span class='badge bg-info text-dark'>Sunday Working</span>";
+
+                                    } elseif ($status == 'Holiday Working') {
+
+                                        echo "<span class='badge bg-info text-dark'>Holiday Working</span>";
 
                                     } else {
 

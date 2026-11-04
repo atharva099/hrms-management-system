@@ -1,0 +1,49 @@
+/* Compatibility styles for the four Admin lists/reports using the shared shell. */
+.admin-page { min-width: 0; box-sizing: border-box; }
+.admin-page .topbar { gap: 16px; flex-wrap: wrap; height: auto; min-height: 70px; padding: 14px 20px; box-sizing: border-box; }
+.admin-dashboard-link { color: #1d4ed8; }
+.admin-page .topbar-left, .admin-page .topbar-right { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+.admin-page .topbar form { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.admin-page .stats-box { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 20px; min-width: 0; }
+.admin-page .stats-box .card { width: auto; min-width: 0; box-sizing: border-box; }
+.admin-page .table-container, .admin-page .admin-table-scroll { max-width: 100%; overflow-x: auto; }
+.admin-page .table-container table, .admin-page .admin-table-scroll table { min-width: 700px; }
+.admin-page input, .admin-page select { box-sizing: border-box; max-width: 100%; min-width: 0; }
+.department-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.department-action-link,
+.department-actions .department-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-height: 32px;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid #2563eb;
+    border-radius: 6px;
+    color: #1d4ed8;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.admin-page .department-actions .department-action-button { color: #fff; background: #2563eb; }
+.department-action-link:hover { color: #fff; background: #1d4ed8; }
+.admin-page .department-actions .department-action-button:hover { background: #1d4ed8; }
+@media (max-width: 768px) {
+    .main-container > .sidebar { position: static; }
+    .admin-page { padding: 16px; }
+    .admin-page .welcome-box { padding: 20px; }
+    .admin-page .welcome-box h1 { font-size: 28px; overflow-wrap: anywhere; }
+    .admin-page .topbar form, .admin-page .filter-form { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+    .admin-page .table-container form { max-width: 100%; }
+    .admin-page .card { box-sizing: border-box; min-width: 0; }
+}
+@media print {
+    .admin-dashboard-link { display: none; }
+    .admin-page .admin-table-scroll { overflow: visible; }
+    .admin-page .admin-table-scroll table { min-width: 0; }
+}

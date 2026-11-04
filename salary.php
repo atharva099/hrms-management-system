@@ -2,10 +2,14 @@
 
 include 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/payroll_period.php';
 
 $employee_id = auth_require_authenticated($conn);
 $is_admin = auth_current_role() === 'Admin';
-$escape_html = static function ($value) {
+$active_nav = 'salary';
+$payroll_actions_enabled = false;
+$payroll_blocked_message = 'Payroll generation and payment release are unavailable until approved deduction rules and an auditable payment workflow are configured.';
+$escape_salary_html = static function ($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 };
 
@@ -37,51 +41,62 @@ if (isset($_POST['process_payroll'])) {
         exit('Request could not be verified.');
     }
 
+    // Do not mark calculation rows as paid until an approved payment
+    // workflow records the actual payment and its audit evidence.
+    if (!$payroll_actions_enabled) {
+        http_response_code(503);
+        exit($payroll_blocked_message);
+    }
+
     $process_month = isset($_POST['process_month']) && is_string($_POST['process_month'])
         ? trim($_POST['process_month'])
         : '';
+    $process_period = coreaxis_payroll_period_from_label($process_month);
 
-    $check_pending_query = mysqli_prepare($conn, "
-    SELECT COUNT(*) AS total
-    FROM salaries
-    WHERE salary_month=?
-    AND payment_status='Pending'
-    ");
-
-    mysqli_stmt_bind_param($check_pending_query, 's', $process_month);
-    mysqli_stmt_execute($check_pending_query);
-    $check_pending_result = mysqli_stmt_get_result($check_pending_query);
-    mysqli_stmt_close($check_pending_query);
-
-    $check_pending =
-        mysqli_fetch_assoc(
-            $check_pending_result
-        );
-
-    if ($check_pending['total'] > 0) {
-
-        $process_statement = mysqli_prepare($conn, "
-            UPDATE salaries
-            SET payment_status='Paid',
-                payment_date=CURDATE()
-            WHERE salary_month=?
-            AND payment_status='Pending'
-        ");
-        mysqli_stmt_bind_param($process_statement, 's', $process_month);
-        mysqli_stmt_execute($process_statement);
-        mysqli_stmt_close($process_statement);
-
-        header(
-            "Location: salary.php?success=payroll_processed"
-        );
-
-        exit();
-
+    if ($process_period === false) {
+        http_response_code(400);
+        $error_message = 'Please select a valid payroll month.';
     } else {
+        $check_pending_query = mysqli_prepare($conn, "
+            SELECT COUNT(*) AS total
+            FROM salaries
+            WHERE (salary_period=? OR (salary_period IS NULL AND salary_month=?))
+              AND payment_status='Pending'
+        ");
 
-        $error_message =
-            "No pending payroll found for selected month.";
+        if ($check_pending_query === false
+            || !mysqli_stmt_bind_param($check_pending_query, 'ss', $process_period['date'], $process_month)
+            || !mysqli_stmt_execute($check_pending_query)) {
+            if ($check_pending_query instanceof mysqli_stmt) { mysqli_stmt_close($check_pending_query); }
+            $error_message = 'Payroll could not be processed. Please try again.';
+        } else {
+            $check_pending_result = mysqli_stmt_get_result($check_pending_query);
+            mysqli_stmt_close($check_pending_query);
+            $check_pending = $check_pending_result ? mysqli_fetch_assoc($check_pending_result) : null;
 
+            if ($check_pending && (int) $check_pending['total'] > 0) {
+
+                $process_statement = mysqli_prepare($conn, "
+                    UPDATE salaries
+                    SET payment_status='Paid', payment_date=CURDATE()
+                    WHERE (salary_period=? OR (salary_period IS NULL AND salary_month=?))
+                      AND payment_status='Pending'
+                ");
+                if ($process_statement === false
+                    || !mysqli_stmt_bind_param($process_statement, 'ss', $process_period['date'], $process_month)
+                    || !mysqli_stmt_execute($process_statement)) {
+                    if ($process_statement instanceof mysqli_stmt) { mysqli_stmt_close($process_statement); }
+                    $error_message = 'Payroll could not be processed. Please try again.';
+                } else {
+                    mysqli_stmt_close($process_statement);
+                    header("Location: salary.php?success=payroll_processed");
+                    exit();
+                }
+
+            } else {
+                $error_message = 'No pending payroll found for selected month.';
+            }
+        }
     }
 }
 
@@ -99,30 +114,27 @@ if (isset($_POST['generate_salary'])) {
         exit('Request could not be verified.');
     }
 
+    // The existing fixed per-event deductions are not an approved payroll
+    // policy. Fail closed until versioned, approved rules are implemented.
+    if (!$payroll_actions_enabled) {
+        http_response_code(503);
+        exit($payroll_blocked_message);
+    }
+
     $salary_employee_id = isset($_POST['employee_id']) && is_string($_POST['employee_id'])
         ? trim($_POST['employee_id'])
         : '';
     $salary_month = isset($_POST['salary_month']) && is_string($_POST['salary_month'])
         ? trim($_POST['salary_month'])
         : '';
-    $month_names = [
-        'January' => '01', 'February' => '02', 'March' => '03', 'April' => '04',
-        'May' => '05', 'June' => '06', 'July' => '07', 'August' => '08',
-        'September' => '09', 'October' => '10', 'November' => '11', 'December' => '12'
-    ];
     $valid_employee_id = preg_match('/^EMP[0-9]{3,17}$/iD', $salary_employee_id) === 1;
-    $valid_month = preg_match(
-        '/^(January|February|March|April|May|June|July|August|September|October|November|December) ([0-9]{4})$/D',
-        $salary_month,
-        $month_matches
-    ) === 1;
-    if (!$valid_employee_id || !$valid_month || (int) $month_matches[2] < 1000) {
+    $salary_period = coreaxis_payroll_period_from_label($salary_month);
+    if (!$valid_employee_id || $salary_period === false) {
         http_response_code(400);
         $error_message = 'Please select a valid employee and payroll month.';
     } else {
-        $month_number = $month_names[$month_matches[1]];
-        $year_number = $month_matches[2];
-        $month_filter = $year_number . '-' . $month_number;
+        $period_start = $salary_period['date'];
+        $period_end = (new DateTimeImmutable($period_start))->modify('+1 month')->format('Y-m-d');
         $transaction_started = false;
 
         try {
@@ -131,8 +143,8 @@ if (isset($_POST['generate_salary'])) {
             }
             $transaction_started = true;
 
-            // salaries has no employee/month unique key; this lock serializes this endpoint's attempts.
-            // Other writers must use the same lock until a reviewed database constraint exists.
+            // Keep this lock for compatibility with other generation paths.
+            // The R5.1 database migration adds the final employee/period unique key.
             $employee_statement = mysqli_prepare(
                 $conn,
                 "SELECT salary, incentive FROM users
@@ -154,15 +166,13 @@ if (isset($_POST['generate_salary'])) {
             if (!$employee_row) {
                 throw new DomainException('inactive_employee');
             }
-            if (!is_numeric($employee_row['salary']) || !is_numeric($employee_row['incentive'])
-                || !is_finite((float) $employee_row['salary']) || !is_finite((float) $employee_row['incentive'])
-                || (float) $employee_row['salary'] < 0 || (float) $employee_row['incentive'] < 0
-                || (float) $employee_row['salary'] > 99999999.99
-                || (float) $employee_row['incentive'] > 99999999.99) {
+            $basic_salary_cents = coreaxis_payroll_amount_to_cents($employee_row['salary']);
+            $incentive_cents = coreaxis_payroll_amount_to_cents($employee_row['incentive']);
+            if ($basic_salary_cents === false || $incentive_cents === false) {
                 throw new DomainException('invalid_employee_pay');
             }
-            $basic_salary = (float) $employee_row['salary'];
-            $incentive = (float) $employee_row['incentive'];
+            $basic_salary = coreaxis_payroll_cents_to_decimal($basic_salary_cents);
+            $incentive = coreaxis_payroll_cents_to_decimal($incentive_cents);
 
     $late_query = mysqli_prepare($conn, "SELECT COUNT(*) AS total_late
 
@@ -172,10 +182,10 @@ WHERE employee_id=?
 
 AND status='Late'
 
-AND attendance_date LIKE CONCAT(?, '%')");
+AND attendance_date >= ? AND attendance_date < ?");
 
     if ($late_query === false
-        || !mysqli_stmt_bind_param($late_query, 'ss', $salary_employee_id, $month_filter)
+        || !mysqli_stmt_bind_param($late_query, 'sss', $salary_employee_id, $period_start, $period_end)
         || !mysqli_stmt_execute($late_query)) {
         if ($late_query instanceof mysqli_stmt) { mysqli_stmt_close($late_query); }
         throw new RuntimeException('attendance_query');
@@ -197,10 +207,10 @@ WHERE employee_id=?
 
 AND status='Half Day'
 
-AND attendance_date LIKE CONCAT(?, '%')");
+AND attendance_date >= ? AND attendance_date < ?");
 
     if ($halfday_query === false
-        || !mysqli_stmt_bind_param($halfday_query, 'ss', $salary_employee_id, $month_filter)
+        || !mysqli_stmt_bind_param($halfday_query, 'sss', $salary_employee_id, $period_start, $period_end)
         || !mysqli_stmt_execute($halfday_query)) {
         if ($halfday_query instanceof mysqli_stmt) { mysqli_stmt_close($halfday_query); }
         throw new RuntimeException('attendance_query');
@@ -222,10 +232,10 @@ WHERE employee_id=?
 
 AND status='Absent'
 
-AND attendance_date LIKE CONCAT(?, '%')");
+AND attendance_date >= ? AND attendance_date < ?");
 
     if ($absent_query === false
-        || !mysqli_stmt_bind_param($absent_query, 'ss', $salary_employee_id, $month_filter)
+        || !mysqli_stmt_bind_param($absent_query, 'sss', $salary_employee_id, $period_start, $period_end)
         || !mysqli_stmt_execute($absent_query)) {
         if ($absent_query instanceof mysqli_stmt) { mysqli_stmt_close($absent_query); }
         throw new RuntimeException('attendance_query');
@@ -239,24 +249,16 @@ AND attendance_date LIKE CONCAT(?, '%')");
 
 
 
-    $late_deduction = $total_late * 100;
-
-    $halfday_deduction = $total_halfday * 500;
-
-    $absent_deduction = $total_absent * 1000;
-
-    $final_salary =
-        ($basic_salary + $incentive)
-
-        - (
-
-            $late_deduction
-
-            + $halfday_deduction
-
-            + $absent_deduction
-
-        );
+    $late_deduction_cents = (int) $total_late * 10000;
+    $halfday_deduction_cents = (int) $total_halfday * 50000;
+    $absent_deduction_cents = (int) $total_absent * 100000;
+    $late_deduction = coreaxis_payroll_cents_to_decimal($late_deduction_cents);
+    $halfday_deduction = coreaxis_payroll_cents_to_decimal($halfday_deduction_cents);
+    $absent_deduction = coreaxis_payroll_cents_to_decimal($absent_deduction_cents);
+    $final_salary = coreaxis_payroll_cents_to_decimal(
+        $basic_salary_cents + $incentive_cents
+        - $late_deduction_cents - $halfday_deduction_cents - $absent_deduction_cents
+    );
 
     $check_query = mysqli_prepare($conn, '
 
@@ -266,12 +268,16 @@ FROM salaries
 
 WHERE employee_id=?
 
-AND salary_month=?
+AND (salary_period=? OR salary_month=?)
+
+LIMIT 1
+
+FOR UPDATE
 
 ');
 
     if ($check_query === false
-        || !mysqli_stmt_bind_param($check_query, 'ss', $salary_employee_id, $salary_month)
+        || !mysqli_stmt_bind_param($check_query, 'sss', $salary_employee_id, $period_start, $salary_month)
         || !mysqli_stmt_execute($check_query)) {
         if ($check_query instanceof mysqli_stmt) { mysqli_stmt_close($check_query); }
         throw new RuntimeException('duplicate_query');
@@ -291,6 +297,7 @@ AND salary_month=?
 (
 employee_id,
 salary_month,
+salary_period,
 basic_salary,
 incentive,
 late_deduction,
@@ -301,14 +308,15 @@ payment_status
 )
 VALUES
 (
-?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
+?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending'
  )");
 
         if ($query === false || !mysqli_stmt_bind_param(
             $query,
-            'ssdddddd',
+            'sssssssss',
             $salary_employee_id,
             $salary_month,
+            $period_start,
             $basic_salary,
             $incentive,
             $late_deduction,
@@ -345,13 +353,16 @@ VALUES
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 
     <title>Salary Management</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="stylesheet" href="css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/operations-pages.css?v=2">
 
 </head>
 
@@ -439,7 +450,8 @@ $paid_query = $is_admin ? "
 SELECT COUNT(DISTINCT employee_id)
 AS total_employees
 FROM salaries
-" : 'SELECT COUNT(*) AS total_employees FROM salaries WHERE employee_id=?';
+WHERE payment_status='Paid'
+" : "SELECT COUNT(DISTINCT employee_id) AS total_employees FROM salaries WHERE employee_id=? AND payment_status='Paid'";
 
 $paid_result = salaryScopedResult($conn, $paid_query, $is_admin, $employee_id);
 
@@ -489,6 +501,10 @@ $current_month_payroll =
 
 <body style="background:#f3f4f6;">
 
+    <div class="main-container">
+        <?php include __DIR__ . '/includes/navigation.php'; ?>
+        <main class="content operation-page salary-page" id="main-content">
+
     <?php if (isset($error_message)) { ?>
 
         <div style="
@@ -501,7 +517,7 @@ font-weight:600;
 text-align:center;
 ">
 
-            <?php echo $escape_html($error_message); ?>
+            <?php echo $escape_salary_html($error_message); ?>
 
         </div>
 
@@ -533,22 +549,14 @@ text-align:center;
 
     <div class="salary-container">
 
-        <div class="back-btn-box">
-            <a href="dashboard.php" class="back-dashboard-btn">
-                ← Back to Dashboard
-            </a>
-        </div>
+        <header class="topbar">
+            <h1>
+                <?php echo $is_admin ? "Payroll Management Dashboard" : "My Salary Dashboard"; ?>
+            </h1>
+            <a href="dashboard.php">Back to Dashboard</a>
+        </header>
 
         <div class="salary-hero">
-
-            <h1>
-                <?php
-                echo $is_admin
-                    ? "Payroll Management Dashboard"
-                    : "My Salary Dashboard";
-                ?>
-            </h1>
-
             <p>
                 <?php
                 echo $is_admin
@@ -658,6 +666,12 @@ text-align:center;
                 Payroll Processing
             </h2>
 
+            <?php if (!$payroll_actions_enabled) { ?>
+                <p class="salary-error-alert" role="status">
+                    <?php echo $escape_salary_html($payroll_blocked_message); ?>
+                </p>
+            <?php } ?>
+
             <div class="salary-card payroll-form-card">
 
                 <h2 style="margin-bottom:25px;">
@@ -691,12 +705,12 @@ text-align:center;
 
                             ?>
 
-                            <option value="<?php echo $escape_html($emp['employee_id']); ?>">
+                            <option value="<?php echo $escape_salary_html($emp['employee_id']); ?>">
 
                                 <?php
-                                echo $escape_html($emp['employee_id'])
+                                echo $escape_salary_html($emp['employee_id'])
                                     . " - "
-                                    . $escape_html($emp['full_name']);
+                                    . $escape_salary_html($emp['full_name']);
                                 ?>
 
                             </option>
@@ -754,7 +768,7 @@ text-align:center;
 
                     <input type="number" id="incentive" name="incentive" placeholder="Incentive" readonly>
 
-                    <button type="submit" name="generate_salary">
+                    <button type="submit" name="generate_salary" disabled>
 
                         Generate Salary
 
@@ -832,21 +846,31 @@ color:#374151;
                         $month_query =
                             mysqli_query(
                                 $conn,
-                                "SELECT DISTINCT salary_month
+                                "SELECT salary_month,
+                                        MAX(COALESCE(
+                                            salary_period,
+                                            STR_TO_DATE(CONCAT('01 ', salary_month), '%d %M %Y')
+                                        )) AS salary_month_order
                      FROM salaries
-                     ORDER BY id DESC"
+                     GROUP BY salary_month
+                     ORDER BY salary_month_order DESC, salary_month DESC"
                             );
 
-                        while (
-                            $month =
-                            mysqli_fetch_assoc($month_query)
-                        ) {
+                        if ($month_query instanceof mysqli_result) {
+                            $salary_month_options = mysqli_fetch_all($month_query, MYSQLI_ASSOC);
+                            mysqli_free_result($month_query);
+                        } else {
+                            $salary_month_options = [];
+                            echo '<option value="" disabled>Payroll months are temporarily unavailable.</option>';
+                        }
+
+                        foreach ($salary_month_options as $month) {
 
                             ?>
 
-                            <option value="<?php echo $escape_html($month['salary_month']); ?>">
+                            <option value="<?php echo $escape_salary_html($month['salary_month']); ?>">
 
-                                <?php echo $escape_html($month['salary_month']); ?>
+                                <?php echo $escape_salary_html($month['salary_month']); ?>
 
                             </option>
 
@@ -855,7 +879,7 @@ color:#374151;
                     </select>
 
                     <button type="submit" name="process_payroll" <?php
-                    if ($pending_release['total_pending_release'] == 0) {
+                    if ($pending_release['total_pending_release'] == 0 || !$payroll_actions_enabled) {
                         echo "disabled";
                     }
                     ?> onclick="return confirm('Process payroll for selected month?');">
@@ -916,32 +940,48 @@ color:#374151;
 
                         <?php
 
+                        $month_filter_sql = "SELECT salary_month,
+                                MAX(COALESCE(
+                                    salary_period,
+                                    STR_TO_DATE(CONCAT('01 ', salary_month), '%d %M %Y')
+                                )) AS salary_month_order
+                            FROM salaries
+                            WHERE salary_month IS NOT NULL AND salary_month <> ''
+                            " . ($is_admin ? '' : 'AND employee_id = ?') . "
+                            GROUP BY salary_month
+                            ORDER BY salary_month_order DESC, salary_month DESC";
+
                         if ($is_admin) {
-                            $month_result = mysqli_query(
-                                $conn,
-                                'SELECT DISTINCT salary_month FROM salaries ORDER BY id DESC'
-                            );
+                            $month_result = mysqli_query($conn, $month_filter_sql);
                         } else {
-                            $month_statement = mysqli_prepare(
-                                $conn,
-                                'SELECT DISTINCT salary_month FROM salaries WHERE employee_id=? ORDER BY id DESC'
-                            );
-                            mysqli_stmt_bind_param($month_statement, 's', $employee_id);
-                            mysqli_stmt_execute($month_statement);
-                            $month_result = mysqli_stmt_get_result($month_statement);
-                            mysqli_stmt_close($month_statement);
+                            $month_statement = mysqli_prepare($conn, $month_filter_sql);
+                            if ($month_statement instanceof mysqli_stmt) {
+                                mysqli_stmt_bind_param($month_statement, 's', $employee_id);
+                                $month_executed = mysqli_stmt_execute($month_statement);
+                                $month_result = $month_executed
+                                    ? mysqli_stmt_get_result($month_statement)
+                                    : false;
+                                mysqli_stmt_close($month_statement);
+                            } else {
+                                $month_result = false;
+                            }
                         }
 
-                        while (
-                            $month_row =
-                            mysqli_fetch_assoc($month_result)
-                        ) {
+                        if ($month_result instanceof mysqli_result) {
+                            $month_filter_options = mysqli_fetch_all($month_result, MYSQLI_ASSOC);
+                            mysqli_free_result($month_result);
+                        } else {
+                            $month_filter_options = [];
+                            echo '<option value="" disabled>Payroll months are temporarily unavailable.</option>';
+                        }
+
+                        foreach ($month_filter_options as $month_row) {
 
                             ?>
 
-                            <option value="<?php echo $escape_html($month_row['salary_month']); ?>">
+                            <option value="<?php echo $escape_salary_html($month_row['salary_month']); ?>">
 
-                                <?php echo $escape_html($month_row['salary_month']); ?>
+                                <?php echo $escape_salary_html($month_row['salary_month']); ?>
 
                             </option>
 
@@ -955,6 +995,7 @@ color:#374151;
 
         </div>
 
+        <div class="operations-table-scroll salary-table-scroll" role="region" aria-label="Salary records" tabindex="0">
         <table class="salary-table">
 
             <tr>
@@ -997,9 +1038,9 @@ font-weight:500;
 
             <?php while ($row = mysqli_fetch_assoc($result)) { ?>
 
-                <tr class="salary-row" data-name="<?php echo $escape_html(strtolower((string) $row['full_name'])); ?>"
-                    data-id="<?php echo $escape_html(strtolower((string) $row['employee_id'])); ?>"
-                    data-month="<?php echo $escape_html(strtolower((string) $row['salary_month'])); ?>">
+                <tr class="salary-row" data-name="<?php echo $escape_salary_html(strtolower((string) $row['full_name'])); ?>"
+                    data-id="<?php echo $escape_salary_html(strtolower((string) $row['employee_id'])); ?>"
+                    data-month="<?php echo $escape_salary_html(strtolower((string) $row['salary_month'])); ?>">
 
                     <td>
 
@@ -1007,7 +1048,7 @@ font-weight:500;
 
                         <?php
                         echo str_pad(
-                            (string) (int) $row['id'],
+                            $row['id'],
                             4,
                             '0',
                             STR_PAD_LEFT
@@ -1017,13 +1058,13 @@ font-weight:500;
                     </td>
 
                     <?php if ($is_admin) { ?>
-                        <td><?php echo $escape_html($row['employee_id']); ?></td>
+                        <td><?php echo $escape_salary_html($row['employee_id']); ?></td>
 
-                        <td><?php echo $escape_html($row['full_name']); ?></td>
+                        <td><?php echo $escape_salary_html($row['full_name']); ?></td>
                     <?php } ?>
 
                     <td>
-                        <?php echo $escape_html($row['salary_month']); ?>
+                        <?php echo $escape_salary_html($row['salary_month']); ?>
                     </td>
 
                     <td>
@@ -1117,9 +1158,10 @@ font-weight:500;
             <?php } ?>
 
         </table>
+        </div>
 
     </div>
-
+        </main>
     </div>
 
     <script>

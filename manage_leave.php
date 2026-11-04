@@ -61,9 +61,10 @@ $escape_html = static function ($value) {
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>
         Manage Leave
@@ -71,113 +72,20 @@ $escape_html = static function ($value) {
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <style>
-        body {
-            margin: 0;
-            background: #f4f6f9;
-            font-family: Arial;
-        }
 
-        .main-container {
-            display: flex;
-        }
 
-        .sidebar {
-            width: 250px;
-            background: #007bff;
-            min-height: 100vh;
-            padding: 25px 20px;
-            box-sizing: border-box;
-        }
-
-        .sidebar a {
-            display: block;
-            color: white;
-            text-decoration: none;
-            padding: 12px;
-            margin-top: 10px;
-            border-radius: 8px;
-        }
-
-        .sidebar a:hover,
-        .sidebar .active {
-            background: white;
-            color: #007bff;
-        }
-
-        .content {
-            flex: 1;
-            padding: 40px;
-        }
-
-        table {
-            width: 100%;
-            background: white;
-            border-collapse: collapse;
-            margin-top: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        table th {
-            background: #007bff;
-            color: white;
-            padding: 15px;
-        }
-
-        table td {
-            padding: 15px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .approve-btn {
-            background: green;
-            color: white;
-            padding: 8px 12px;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-
-        .reject-btn {
-            background: red;
-            color: white;
-            padding: 8px 12px;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-    </style>
-
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/leave-pages.css?v=1">
 </head>
 
 <body>
 
     <div class="main-container">
 
-        <div class="sidebar">
+        <?php $active_nav = 'manage_leave'; include __DIR__ . '/includes/navigation.php'; ?>
 
-            <h2 style="color:white;">
-                CoreAxis CRM
-            </h2>
+        <div class="content leave-page" id="main-content"><header class="topbar"><h1>Leave Management</h1><a href="dashboard.php">Back to Dashboard</a></header>
 
-            <a href="dashboard.php">
-                Dashboard
-            </a>
 
-            <a href="manage_leave.php" class="active">
-                Manage Leave
-            </a>
-
-            <a href="logout.php">
-                Logout
-            </a>
-
-        </div>
-
-        <div class="content">
-
-            <h1>
-                Leave Requests
-            </h1>
 
             <?php if ($management_message !== '') { ?>
                 <p role="status" style="padding:12px; background:#eef4ff; border-radius:6px;">
@@ -185,7 +93,7 @@ $escape_html = static function ($value) {
                 </p>
             <?php } ?>
 
-            <table style="width:100%; border-collapse:collapse; text-align:center;">
+            <div class="leave-card leave-table-wrap" role="region" aria-label="Leave requests" tabindex="0"><table class="leave-table" style="width:100%; border-collapse:collapse; text-align:center;">
 
                 <tr>
 
@@ -435,7 +343,7 @@ $escape_html = static function ($value) {
 
                 ?>
 
-            </table>
+            </table></div>
 
         </div>
 

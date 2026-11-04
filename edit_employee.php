@@ -2,6 +2,7 @@
 
 include 'includes/db.php';
 require_once 'includes/auth.php';
+require_once __DIR__ . '/includes/password_policy.php';
 
 auth_require_admin($conn);
 
@@ -65,6 +66,8 @@ if ($request_method === 'POST') {
         $new_password = isset($_POST['password']) && is_string($_POST['password'])
             ? $_POST['password']
             : null;
+        $password_change_requested = $new_password !== null && $new_password !== '';
+        $password_valid = !$password_change_requested || coreaxis_password_is_valid($new_password);
 
         $valid = true;
         foreach ([[$name, 100], [$department, 50], [$designation, 50]] as [$value, $limit]) {
@@ -85,14 +88,16 @@ if ($request_method === 'POST') {
             || !is_numeric($salary)
             || (float) $salary < 0
             || (float) $salary > 99999999.99
-            || ($new_password !== null && $new_password !== '' && strlen($new_password) > 72)
+            || !$password_valid
         ) {
             $valid = false;
         }
 
         if (!$valid) {
             http_response_code(400);
-            $error_message = 'Please provide valid values for all employee fields.';
+            $error_message = $password_valid
+                ? 'Please provide valid values for all employee fields.'
+                : 'Password must be between 12 and 72 bytes.';
         } else {
             if ($new_password !== null && $new_password !== '') {
                 $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
@@ -218,63 +223,24 @@ $escape_html = static function ($value) {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>Edit Employee</title>
 
-    <style>
-        body {
-            background: #f4f6f9;
-            font-family: Arial;
-        }
-
-        .form-box {
-            width: 500px;
-            background: white;
-            margin: 50px auto;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .form-box h1 {
-            margin-bottom: 20px;
-        }
-
-        input,
-        select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-
-        button {
-            width: 100%;
-            padding: 12px;
-            background: #0d6efd;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #0b5ed7;
-        }
-    </style>
-
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/employee-forms.css?v=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
-<body>
+<body><div class="main-container">
+<?php $active_nav = 'employees'; include __DIR__ . '/includes/navigation.php'; ?>
+<main class="content employee-form-page"><header class="topbar"><h1>Edit Employee</h1><a href="dashboard.php">Back to Dashboard</a></header>
 
-    <div class="form-box">
+    <section class="employee-form-card">
 
-        <h1>Edit Employee</h1>
+        <h2>Employee details</h2>
         <?php if ($error_message !== '') { ?>
             <p role="alert"><?php echo $escape_html($error_message); ?></p>
         <?php } ?>
@@ -283,17 +249,23 @@ $escape_html = static function ($value) {
             <?php echo csrf_field(); ?>
             <input type="hidden" name="employee_id" value="<?php echo $escape_html($row['employee_id']); ?>">
 
-            <input type="text" name="full_name" value="<?php echo $escape_html($row['full_name']); ?>" maxlength="100" required>
+            <label for="full_name">Full name</label>
+<input type="text" id="full_name" name="full_name" value="<?php echo $escape_html($row['full_name']); ?>" maxlength="100" required>
 
-            <input type="text" name="department" value="<?php echo $escape_html($row['department']); ?>" maxlength="50" required>
+            <label for="department">Department</label>
+<input type="text" id="department" name="department" value="<?php echo $escape_html($row['department']); ?>" maxlength="50" required>
 
-            <input type="text" name="designation" value="<?php echo $escape_html($row['designation']); ?>" maxlength="50" required>
+            <label for="designation">Designation</label>
+<input type="text" id="designation" name="designation" value="<?php echo $escape_html($row['designation']); ?>" maxlength="50" required>
 
-            <input type="number" name="salary" value="<?php echo $escape_html($row['salary']); ?>" min="0" max="99999999.99" step="0.01" required>
+            <label for="salary">Salary</label>
+<input type="number" id="salary" name="salary" value="<?php echo $escape_html($row['salary']); ?>" min="0" max="99999999.99" step="0.01" required>
 
-            <input type="password" name="password" placeholder="Leave blank to keep current password" maxlength="72" autocomplete="new-password">
+            <label for="password">Password</label>
+<input type="password" id="password" name="password" placeholder="Leave blank to keep current password" maxlength="72" autocomplete="new-password">
 
-            <select name="role" required>
+            <label for="role">Role</label>
+<select id="role" name="role" required>
 
                 <option value="Admin" <?php if ($row['role'] === 'Admin') echo 'selected'; ?>>
                     Admin
@@ -305,7 +277,8 @@ $escape_html = static function ($value) {
 
             </select>
 
-            <select name="status" required>
+            <label for="status">Status</label>
+<select id="status" name="status" required>
 
                 <option value="Active" <?php if ($row['status'] === 'Active') echo 'selected'; ?>>
                     Active
@@ -323,8 +296,8 @@ $escape_html = static function ($value) {
 
         </form>
 
-    </div>
+    </section>
 
-</body>
+</main></div></body>
 
 </html>

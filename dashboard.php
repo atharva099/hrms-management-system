@@ -70,12 +70,22 @@ $active_nav = 'dashboard';
 <html>
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>Dashboard</title>
 
     <link rel="stylesheet" href="css/style.css">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @media (max-width: 768px) {
+            .sidebar { position: static; }
+            .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+            .dashboard-grid > * { min-width: 0; box-sizing: border-box; }
+            .welcome-box { padding: 20px; }
+            .welcome-box h1 { font-size: 28px; overflow-wrap: anywhere; }
+        }
+    </style>
 
 
 
@@ -338,9 +348,9 @@ LIMIT 5"
                     <?php
 
                     if ($user['role'] == 'Admin') {
-                        $profile_image = "images/admin.png";
+                        $profile_image = "images/default.png";
                     } else {
-                        $profile_image = "images/employee.png";
+                        $profile_image = "images/default.png";
                     }
 
                     ?>
@@ -356,11 +366,11 @@ LIMIT 5"
 
                         if ($user['role'] == 'Admin') {
 
-                            $image_path = "images/admin.png";
+                            $image_path = "images/default.png";
 
                         } else {
 
-                            $image_path = "images/employee.png";
+                            $image_path = "images/default.png";
                         }
                     }
 

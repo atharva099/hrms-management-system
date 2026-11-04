@@ -22,6 +22,13 @@ $columns = [
 ];
 
 $assert(attendance_checkin_policy_columns_match($columns), 'valid migrated schema with string defaults passes');
+$mysql8_columns = $columns;
+$mysql8_columns['shifts.early_checkin_minutes']['COLUMN_TYPE'] = 'smallint unsigned';
+$mysql8_columns['shifts.late_checkin_cutoff_minutes']['COLUMN_TYPE'] = 'smallint unsigned';
+$mysql8_columns['attendance.shift_id_snapshot']['COLUMN_TYPE'] = 'int';
+$mysql8_columns['attendance.early_checkin_minutes_snapshot']['COLUMN_TYPE'] = 'smallint unsigned';
+$mysql8_columns['attendance.late_checkin_cutoff_minutes_snapshot']['COLUMN_TYPE'] = 'smallint unsigned';
+$assert(attendance_checkin_policy_columns_match($mysql8_columns), 'MySQL 8 integer metadata without deprecated display widths passes');
 $mariadb_104_null_defaults = $columns;
 foreach ([
     'attendance.shift_id_snapshot',
@@ -70,6 +77,12 @@ $assert(!attendance_checkin_policy_columns_match($missing), 'missing required co
 $wrong_type = $columns;
 $wrong_type['shifts.early_checkin_minutes']['COLUMN_TYPE'] = 'int(11)';
 $assert(!attendance_checkin_policy_columns_match($wrong_type), 'invalid column type fails closed');
+$wrong_signedness = $mysql8_columns;
+$wrong_signedness['shifts.early_checkin_minutes']['COLUMN_TYPE'] = 'smallint';
+$assert(!attendance_checkin_policy_columns_match($wrong_signedness), 'MySQL 8 signed integer is rejected where unsigned is required');
+$assert(attendance_row_version_column_matches(['COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => '1', 'COLUMN_DEFAULT_IS_NULL' => '0']), 'MySQL 8 row_version metadata without display width passes');
+$assert(attendance_row_version_column_matches(['COLUMN_TYPE' => 'int(10) unsigned', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => '1', 'COLUMN_DEFAULT_IS_NULL' => '0']), 'MariaDB row_version metadata with display width remains compatible');
+$assert(!attendance_row_version_column_matches(['COLUMN_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => '1', 'COLUMN_DEFAULT_IS_NULL' => '0']), 'signed row_version is rejected');
 $wrong_nullability = $columns;
 $wrong_nullability['attendance.shift_id_snapshot']['IS_NULLABLE'] = 'NO';
 $wrong_nullability['attendance.shift_id_snapshot']['COLUMN_DEFAULT'] = 'NULL';

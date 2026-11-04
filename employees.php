@@ -90,6 +90,9 @@ if (isset($_GET['error'])) {
     if ($_GET['error'] == "self_deactivate") {
         $success_message =
             "You cannot deactivate your own account.";
+    } elseif ($_GET['error'] === 'open_attendance') {
+        $success_message =
+            'This employee has an open check-in. Close or review it before deactivation.';
     }
 }
 
@@ -97,9 +100,11 @@ if (isset($_GET['error'])) {
 
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 
 <head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>Employees</title>
 
@@ -107,6 +112,7 @@ if (isset($_GET['error'])) {
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
+<link rel="stylesheet" href="css/admin-pages.css?v=1">
 </head>
 
 <body>
@@ -115,54 +121,15 @@ if (isset($_GET['error'])) {
 
         <!-- SIDEBAR -->
 
-        <div class="sidebar">
-
-            <h2>CoreAxis CRM</h2>
-
-            <a href="dashboard.php">
-                <i class="fa-solid fa-chart-line"></i>
-                Dashboard
-            </a>
-
-            <a href="attendance.php">
-                <i class="fa-solid fa-calendar-check"></i>
-                Attendance
-            </a>
-
-            <a href="employees.php" class="active">
-    <i class="fa-solid fa-users"></i>
-    Employees
-</a>
-
-<a href="department_master.php">
-    <i class="fa-solid fa-building"></i>
-    Department Master
-</a>
-
-            <a href="attendance_report.php">
-                <i class="fa-solid fa-chart-column"></i>
-                Attendance Report
-            </a>
-
-            <a href="salary_report.php">
-                <i class="fa-solid fa-money-bill-wave"></i>
-                Salary Report
-            </a>
-
-            <a href="logout.php">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                Logout
-            </a>
-
-        </div>
+        <?php $active_nav = 'employees'; include __DIR__ . '/includes/navigation.php'; ?>
 
         <!-- CONTENT -->
 
-        <div class="content">
+        <div class="content admin-page" id="main-content">
 
             <!-- TOPBAR -->
 
-            <div class="topbar">
+            <div class="topbar"><a class="admin-dashboard-link" href="dashboard.php">Back to Dashboard</a>
 
                 <div class="topbar-left">
                     <h2>Employees</h2>

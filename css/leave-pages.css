@@ -1,0 +1,23 @@
+.leave-page { min-width: 0; box-sizing: border-box; }
+.leave-page .topbar { height: auto; min-height: 70px; padding: 14px 20px; box-sizing: border-box; gap: 16px; flex-wrap: wrap; }
+.leave-page h1 { font-size: 26px; margin: 0; }
+.leave-page a { color: #1d4ed8; }
+.leave-card { box-sizing: border-box; max-width: 100%; margin: 24px 0; padding: 24px; border-radius: 18px; background: white; box-shadow: 0 4px 15px #0f172a0d; }
+.leave-card h2 { font-size: 21px; margin: 0 0 20px; }
+.leave-application-form { display: grid; gap: 12px; max-width: 560px; }
+.leave-page label { font-weight: 600; color: #334155; }
+.leave-page input:not([type=hidden]), .leave-page select, .leave-page textarea { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; }
+.leave-page textarea { min-height: 100px; resize: vertical; }
+.leave-page button { min-height: 44px; padding: 12px 18px; border: 0; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; font: inherit; }
+.leave-page [role=status] { padding: 14px; background: #eff6ff; border-radius: 8px; }
+.leave-page [role=alert] { padding: 14px; background: #fee2e2; color: #991b1b; border-radius: 8px; }
+.leave-table-wrap { overflow-x: auto; }
+.leave-table { min-width: 700px; }
+.leave-table th, .leave-table td { padding: 14px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.leave-table th { background: #eff6ff; color: #1e3a8a; }
+.leave-page :is(a, input, select, textarea, button):focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+@media (max-width: 768px) {
+    .main-container > .sidebar { position: static; }
+    .leave-page { padding: 16px; }
+    .leave-card { padding: 16px; }
+}

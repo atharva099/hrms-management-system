@@ -18,3 +18,52 @@ backup_images/
 # Cache
 .cache/
 desktop.ini
+# Local environment and private deployment configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local.env
+*.secret
+*.secret.*
+*.credentials
+*.credentials.*
+*.credentials.php
+*.secret.php
+config/local.php
+includes/db.local.php
+private/
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Database exports and local backups (keep reviewed project schema/setup SQL)
+database/*.sql
+!database/schema_mysql8.sql
+database/migrations/*.sql
+!database/migrations/*.sql
+database/setup/*.sql
+!database/setup/*.sql
+database/migrations/*fixture*reset*.sql
+*.sql.gz
+*.dump
+*.dump.*
+database/backups/
+backups/
+backup/
+
+# Temporary, recovery, and sensitive local test artifacts
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*~
+recovery/
+recovery-artifacts/
+tests/tools/Reset-*.ps1
+tests/tools/*Recovery*.ps1
+screenshots/private/
